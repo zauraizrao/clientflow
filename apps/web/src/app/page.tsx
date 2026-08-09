@@ -1,5 +1,13 @@
 import { redirect } from "next/navigation";
 
-export default function HomePage() {
-  redirect("/design-system");
+import { auth } from "@/auth";
+
+export default async function HomePage() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  redirect(session.user.needsOnboarding ? "/onboarding" : "/app");
 }

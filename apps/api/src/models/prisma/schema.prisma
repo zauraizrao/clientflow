@@ -65,6 +65,7 @@ model User {
   name            String?
   avatarUrl       String?
   passwordHash    String?
+  googleSubject   String?   @unique
   emailVerifiedAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

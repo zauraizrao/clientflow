@@ -1,6 +1,6 @@
 {
   "name": "@clientflow/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,12 +13,15 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@clientflow/contracts": "workspace:*",
     "@prisma/adapter-pg": "7.9.0",
     "@prisma/client": "7.9.1",
+    "bcryptjs": "3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "5.2.1",
     "helmet": "^8.1.0",
+    "jose": "6.2.3",
     "pg": "^8.16.0",
     "zod": "^4.1.0"
   },

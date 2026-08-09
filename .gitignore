@@ -29,7 +29,10 @@ Thumbs.db
 # Generated Prisma client
 apps/api/src/generated/
 
-# Tests (later modules)
+# Temporary Module 2 safety backups
+.module2-backup-*/
+
+# Tests
 playwright-report/
 test-results/
 coverage/

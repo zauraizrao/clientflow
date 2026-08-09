@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
+import { AppProviders } from "@/components/providers/app-providers";
+
 import "./globals.css";
 
 const sans = IBM_Plex_Sans({
@@ -30,7 +32,7 @@ export default function RootLayout({
       <body
         className={`${sans.variable} ${mono.variable} bg-background text-foreground antialiased`}
       >
-        {children}
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

@@ -1,16 +1,17 @@
 {
   "name": "clientflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=24 <25"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
-    "dev:web": "pnpm --filter @clientflow/web dev",
-    "dev:api": "pnpm --filter @clientflow/api dev",
-    "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "contracts:build": "pnpm --filter @clientflow/contracts build",
+    "dev": "pnpm contracts:build && pnpm -r --parallel --filter \"./apps/*\" dev",
+    "dev:web": "pnpm contracts:build && pnpm --filter @clientflow/web dev",
+    "dev:api": "pnpm contracts:build && pnpm --filter @clientflow/api dev",
+    "build": "pnpm contracts:build && pnpm -r --if-present --filter \"./apps/*\" build",
+    "typecheck": "pnpm contracts:build && pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint"
   }
 }
