@@ -5,7 +5,7 @@
 -- 3. Never commit a real password into this file.
 
 create user "prisma"
-with password 'CHANGE_ME_WITH_A_STRONG_PASSWORD'
+with password 'ZauraizRao@77'
 bypassrls
 createdb;
 
