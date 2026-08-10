@@ -51,10 +51,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members  OrganizationMember[]
-  clients  Client[]
-  projects Project[]
-  tasks    Task[]
+  members        OrganizationMember[]
+  clients        Client[]
+  clientContacts ClientContact[]
+  projects       Project[]
+  tasks          Task[]
 
   @@index([name])
 }
@@ -113,10 +114,37 @@ model Client {
 
   projects Project[]
   members  OrganizationMember[]
+  contacts ClientContact[]
 
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, name])
+}
+
+model ClientContact {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  clientId       String   @db.Uuid
+
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  jobTitle  String?
+  isPrimary Boolean  @default(false)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([organizationId, clientId])
+  @@index([organizationId, email])
+  @@index([clientId, isPrimary])
 }
 
 model Project {

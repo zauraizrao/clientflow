@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { authRouter } from "./auth.routes.js";
+import { clientRouter } from "./client.routes.js";
 import { healthRouter } from "./health.routes.js";
 import { meRouter } from "./me.routes.js";
 import { rbacRouter } from "./rbac.routes.js";
@@ -11,3 +12,5 @@ apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/me", meRouter);
 apiRouter.use("/rbac", rbacRouter);
+
+apiRouter.use("/clients", clientRouter);
