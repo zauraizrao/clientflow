@@ -36,3 +36,5 @@ apps/api/src/generated/
 playwright-report/
 test-results/
 coverage/
+.module3-frontend-backup-*/
+.module4-frontend-backup-*/

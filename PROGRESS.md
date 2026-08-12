@@ -142,3 +142,37 @@
 - [ ] Hiring-manager README
 - [ ] E2E tests
 - [ ] Portfolio launch
+
+## Module 4 - Projects and Tasks [COMPLETE]
+Completed: 2026-08-13
+
+### Delivered
+- Multi-tenant Projects API using strict Express MVC.
+- Client-linked projects with project status, start date, and due date.
+- ProjectMember team model with LEAD and MEMBER project roles.
+- Custom per-project workflow columns with semantic categories.
+- Multi-assignee tasks through TaskAssignee.
+- Task priorities, start/due dates, creator tracking, and completion timestamps.
+- Nested subtasks.
+- Transactional Kanban movement and position ordering.
+- Project/task search, filters, sorting, and pagination.
+- ADMIN / MANAGER / MEMBER / CLIENT project authorization and tenant isolation.
+- Projects dashboard with TanStack Table.
+- Project detail workspace with Board and List views.
+- Native drag-and-drop Kanban.
+- React Hook Form plus shared Zod validation for Module 4 forms.
+- Project team management, workflow management, and archive/restore.
+- Task create/edit/delete, multi-assignee UI, and quick subtasks.
+
+### Verification
+- Prisma schema validation and client generation passed.
+- Migration 20260812211500_projects_tasks_workflows applied successfully.
+- Database migration status reported up to date.
+- Full monorepo TypeScript typecheck passed.
+- Consolidated Module 4 backend smoke verification passed.
+- Projects dashboard and dynamic project route verified in browser.
+- Board/List, task movement, task edit, subtasks, team/workflow dialogs, and archive/restore verified.
+- Production build passed.
+
+### Next
+Module 5 - Files and Comments

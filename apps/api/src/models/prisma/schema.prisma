@@ -21,25 +21,29 @@ enum ClientStatus {
 }
 
 enum ProjectStatus {
-  PLANNED
+  PLANNING
   ACTIVE
   ON_HOLD
   COMPLETED
   CANCELLED
+  ARCHIVED
 }
 
-enum TaskStatus {
-  BACKLOG
-  TODO
-  IN_PROGRESS
-  IN_REVIEW
-  DONE
+enum WorkflowCategory {
+  NOT_STARTED
+  ACTIVE
+  COMPLETED
   CANCELLED
+}
+
+enum ProjectMemberRole {
+  LEAD
+  MEMBER
 }
 
 enum TaskPriority {
   LOW
-  MEDIUM
+  NORMAL
   HIGH
   URGENT
 }
@@ -51,11 +55,14 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members        OrganizationMember[]
-  clients        Client[]
-  clientContacts ClientContact[]
-  projects       Project[]
-  tasks          Task[]
+  members            OrganizationMember[]
+  clients            Client[]
+  clientContacts     ClientContact[]
+  projects           Project[]
+  projectMembers     ProjectMember[]
+  projectColumns     ProjectColumn[]
+  tasks              Task[]
+  taskAssignees      TaskAssignee[]
 
   @@index([name])
 }
@@ -89,7 +96,9 @@ model OrganizationMember {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  assignedTasks Task[] @relation("TaskAssignee")
+  projectMemberships ProjectMember[]
+  taskAssignments    TaskAssignee[]
+  createdTasks       Task[]        @relation("TaskCreator")
 
   @@unique([organizationId, userId])
   @@index([organizationId, role])
@@ -131,7 +140,7 @@ model ClientContact {
   email     String?
   phone     String?
   jobTitle  String?
-  isPrimary Boolean  @default(false)
+  isPrimary Boolean @default(false)
   notes     String?
 
   createdAt DateTime @default(now())
@@ -153,7 +162,7 @@ model Project {
   clientId       String?       @db.Uuid
   name           String
   description    String?
-  status         ProjectStatus @default(PLANNED)
+  status         ProjectStatus @default(PLANNING)
   startDate      DateTime?
   dueDate        DateTime?
   createdAt      DateTime      @default(now())
@@ -162,7 +171,9 @@ model Project {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  tasks Task[]
+  members ProjectMember[]
+  columns ProjectColumn[]
+  tasks   Task[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -170,32 +181,95 @@ model Project {
   @@index([dueDate])
 }
 
-model Task {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @db.Uuid
-  projectId      String       @db.Uuid
-  assigneeId     String?      @db.Uuid
-  parentTaskId   String?      @db.Uuid
-  title          String
-  description    String?
-  status         TaskStatus   @default(TODO)
-  priority       TaskPriority @default(MEDIUM)
-  dueDate        DateTime?
-  position       Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+model ProjectMember {
+  id                   String            @id @default(uuid()) @db.Uuid
+  organizationId       String            @db.Uuid
+  projectId            String            @db.Uuid
+  organizationMemberId String            @db.Uuid
+  role                 ProjectMemberRole @default(MEMBER)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee     OrganizationMember? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  parentTask   Task?               @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
-  subtasks     Task[]              @relation("TaskSubtasks")
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project            Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organizationMember OrganizationMember @relation(fields: [organizationMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, organizationMemberId])
+  @@index([organizationId, projectId])
+  @@index([organizationId, organizationMemberId])
+  @@index([projectId, role])
+}
+
+model ProjectColumn {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  projectId      String           @db.Uuid
+  name           String
+  category       WorkflowCategory @default(NOT_STARTED)
+  position       Int              @default(0)
+  isArchived     Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+
+  @@unique([projectId, name])
+  @@index([organizationId, projectId])
+  @@index([projectId, position])
+  @@index([organizationId, category])
+  @@index([projectId, isArchived])
+}
+
+model Task {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  projectId       String       @db.Uuid
+  projectColumnId String       @db.Uuid
+  parentTaskId    String?      @db.Uuid
+  createdById     String?      @db.Uuid
+  title           String
+  description     String?
+  priority        TaskPriority @default(NORMAL)
+  startDate       DateTime?
+  dueDate         DateTime?
+  completedAt     DateTime?
+  position        Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectColumn ProjectColumn       @relation(fields: [projectColumnId], references: [id], onDelete: Restrict)
+  parentTask    Task?               @relation("TaskSubtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks      Task[]              @relation("TaskSubtasks")
+  createdBy     OrganizationMember? @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignees     TaskAssignee[]
 
   @@index([organizationId])
   @@index([projectId])
-  @@index([assigneeId])
+  @@index([projectColumnId])
   @@index([parentTaskId])
-  @@index([organizationId, status])
+  @@index([createdById])
   @@index([organizationId, priority])
+  @@index([projectId, projectColumnId, position])
   @@index([dueDate])
+  @@index([completedAt])
+}
+
+model TaskAssignee {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @db.Uuid
+  taskId               String   @db.Uuid
+  organizationMemberId String   @db.Uuid
+  createdAt            DateTime @default(now())
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  task               Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  organizationMember OrganizationMember @relation(fields: [organizationMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, organizationMemberId])
+  @@index([organizationId, taskId])
+  @@index([organizationId, organizationMemberId])
 }
