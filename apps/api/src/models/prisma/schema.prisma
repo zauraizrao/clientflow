@@ -89,6 +89,9 @@ model Organization {
   invoiceSettings  OrganizationInvoiceSettings?
   invoices         Invoice[]
   invoiceLineItems InvoiceLineItem[]
+  payments         Payment[]
+
+  stripeWebhookEvents StripeWebhookEvent[]
 
   @@index([name])
 }
@@ -134,6 +137,7 @@ model OrganizationMember {
   uploadedFiles           FileAsset[]              @relation("FileUploader")
   comments                Comment[]                @relation("CommentAuthor")
   activityEvents          ActivityEvent[]          @relation("ActivityActor")
+  initiatedPayments       Payment[]                @relation("PaymentInitiator")
 
   @@unique([organizationId, userId])
   @@index([organizationId, role])
@@ -506,6 +510,7 @@ model Invoice {
   contact       ClientContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
   lineItems     InvoiceLineItem[]
   notifications Notification[]
+  payments      Payment[]
 
   @@unique([organizationId, invoiceNumber])
   @@unique([organizationId, sequenceNumber])
@@ -540,6 +545,100 @@ model InvoiceLineItem {
   @@index([invoiceId, position])
 }
 
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  EXPIRED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum StripeWebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  invoiceId      String        @db.Uuid
+  initiatedById  String?       @db.Uuid
+  status         PaymentStatus @default(PENDING)
+
+  currency       String   @db.VarChar(3)
+  amount         Decimal  @db.Decimal(19, 4)
+  amountMinor    Decimal? @db.Decimal(19, 0)
+  refundedAmount Decimal  @default(0) @db.Decimal(19, 4)
+
+  activeCheckoutKey String? @unique @db.Uuid
+
+  stripeCheckoutSessionId String?   @unique
+  stripePaymentIntentId   String?   @unique
+  stripeChargeId          String?   @unique
+  stripeCustomerId        String?
+  stripePaymentMethodType String?
+  checkoutUrl             String?   @db.Text
+  checkoutExpiresAt       DateTime?
+
+  failureCode    String?
+  failureMessage String? @db.Text
+
+  processingAt DateTime?
+  succeededAt  DateTime?
+  failedAt     DateTime?
+  canceledAt   DateTime?
+  expiredAt    DateTime?
+  refundedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  initiatedBy  OrganizationMember? @relation("PaymentInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+
+  webhookEvents StripeWebhookEvent[]
+  notifications Notification[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, invoiceId, createdAt])
+  @@index([invoiceId, status, createdAt])
+  @@index([initiatedById])
+}
+
+model StripeWebhookEvent {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String?                  @db.Uuid
+  paymentId      String?                  @db.Uuid
+  stripeEventId  String                   @unique
+  type           String
+  objectId       String?
+  livemode       Boolean
+  apiVersion     String?
+  status         StripeWebhookEventStatus @default(RECEIVED)
+  attemptCount   Int                      @default(0)
+
+  eventCreatedAt      DateTime?
+  receivedAt          DateTime  @default(now())
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payment      Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([status, receivedAt])
+  @@index([organizationId, receivedAt])
+  @@index([paymentId])
+}
+
 enum NotificationCategory {
   TASKS
   COMMENTS
@@ -572,6 +671,7 @@ model Notification {
   commentId      String?              @db.Uuid
   fileId         String?              @db.Uuid
   invoiceId      String?              @db.Uuid
+  paymentId      String?              @db.Uuid
   dedupeKey      String?
   readAt         DateTime?
   metadata       Json?
@@ -585,6 +685,7 @@ model Notification {
   comment      Comment?               @relation(fields: [commentId], references: [id], onDelete: SetNull)
   file         FileAsset?             @relation(fields: [fileId], references: [id], onDelete: SetNull)
   invoice      Invoice?               @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payment      Payment?               @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   deliveries   NotificationDelivery[]
 
   @@unique([organizationId, recipientId, dedupeKey])
@@ -596,6 +697,7 @@ model Notification {
   @@index([commentId])
   @@index([fileId])
   @@index([invoiceId])
+  @@index([paymentId])
 }
 
 model NotificationPreference {

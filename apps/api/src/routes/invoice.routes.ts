@@ -1,5 +1,6 @@
 import {
   createInvoiceDraftSchema,
+  createInvoiceCheckoutSchema,
   invoiceIdParamSchema,
   invoiceListQuerySchema,
   updateInvoiceDraftSchema,
@@ -8,6 +9,7 @@ import {
 import { Router } from "express";
 
 import { invoiceController } from "../controllers/invoice.controller.js";
+import { paymentController } from "../controllers/payment.controller.js";
 import { requireApiAuth } from "../middlewares/api-auth.middleware.js";
 import { requireRoles } from "../middlewares/rbac.middleware.js";
 import {
@@ -24,6 +26,12 @@ const allRoles = requireRoles(
   "ADMIN",
   "MANAGER",
   "MEMBER",
+  "CLIENT",
+);
+
+const paymentPayers = requireRoles(
+  "ADMIN",
+  "MANAGER",
   "CLIENT",
 );
 
@@ -65,6 +73,21 @@ invoiceRouter.post(
   invoiceWriters,
   validateBody(createInvoiceDraftSchema),
   invoiceController.createDraft,
+);
+
+invoiceRouter.get(
+  "/:invoiceId/payments",
+  allRoles,
+  validateParams(invoiceIdParamSchema),
+  paymentController.listForInvoice,
+);
+
+invoiceRouter.post(
+  "/:invoiceId/payments/checkout",
+  paymentPayers,
+  validateParams(invoiceIdParamSchema),
+  validateBody(createInvoiceCheckoutSchema),
+  paymentController.createCheckout,
 );
 
 invoiceRouter.get(

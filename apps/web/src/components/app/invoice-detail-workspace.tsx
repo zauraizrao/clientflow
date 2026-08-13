@@ -4,6 +4,7 @@ import type {
   ClientListItemDto,
   InvoiceDto,
   InvoiceStatus,
+  PaymentDto,
 } from "@clientflow/contracts";
 import {
   useQuery,
@@ -13,6 +14,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  useCallback,
   useState,
 } from "react";
 
@@ -32,6 +34,7 @@ import {
   invoiceKeys,
 } from "@/lib/invoice-api";
 import { InvoiceEditModal } from "./invoice-edit-modal";
+import { InvoicePaymentPanel } from "./invoice-payment-panel";
 
 export function InvoiceDetailWorkspace({
   invoiceId,
@@ -83,6 +86,29 @@ export function InvoiceDetailWorkspace({
     ),
   });
 
+  const paymentHistory = useQuery({
+    queryKey: organizationId
+      ? invoiceKeys.payments(
+          organizationId,
+          invoiceId,
+        )
+      : [
+          "invoices",
+          "payments",
+          "disabled",
+          invoiceId,
+        ],
+    queryFn: () =>
+      invoiceApi.listPayments(
+        invoiceId,
+      ),
+    enabled:
+      Boolean(organizationId) &&
+      Boolean(invoice.data) &&
+      invoice.data?.status !==
+        "DRAFT",
+  });
+
   const clients = useQuery({
     queryKey: [
       "invoice-detail",
@@ -103,38 +129,54 @@ export function InvoiceDetailWorkspace({
         "DRAFT",
   });
 
-  async function refresh(
-    updated?: InvoiceDto,
-  ) {
-    if (
-      organizationId &&
-      updated
-    ) {
-      queryClient.setQueryData(
-        invoiceKeys.detail(
-          organizationId,
-          invoiceId,
-        ),
-        updated,
-      );
-    }
+  const refresh = useCallback(
+    async (
+      updated?: InvoiceDto,
+    ) => {
+      if (
+        organizationId &&
+        updated
+      ) {
+        queryClient.setQueryData(
+          invoiceKeys.detail(
+            organizationId,
+            invoiceId,
+          ),
+          updated,
+        );
+      }
 
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey:
-          invoiceKeys.all,
-      }),
-      organizationId
-        ? queryClient.invalidateQueries({
-            queryKey:
-              invoiceKeys.detail(
-                organizationId,
-                invoiceId,
-              ),
-          })
-        : Promise.resolve(),
-    ]);
-  }
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey:
+            invoiceKeys.all,
+        }),
+        organizationId
+          ? queryClient.invalidateQueries({
+              queryKey:
+                invoiceKeys.detail(
+                  organizationId,
+                  invoiceId,
+                ),
+            })
+          : Promise.resolve(),
+        organizationId
+          ? queryClient.invalidateQueries({
+              queryKey:
+                invoiceKeys.payments(
+                  organizationId,
+                  invoiceId,
+                ),
+            })
+          : Promise.resolve(),
+      ]);
+    },
+    [
+      invoiceId,
+      organizationId,
+      queryClient,
+    ],
+  );
 
   async function finalizeInvoice() {
     if (
@@ -290,13 +332,27 @@ export function InvoiceDetailWorkspace({
   const canEdit =
     canWrite &&
     data.status === "DRAFT";
+  const payments:
+    PaymentDto[] =
+      paymentHistory.data?.items ??
+      [];
+  const hasActivePayment =
+    payments.some(
+      (payment) =>
+        payment.status ===
+          "PENDING" ||
+        payment.status ===
+          "PROCESSING",
+    );
   const canVoid =
     canWrite &&
     (data.status === "SENT" ||
       data.status === "OVERDUE") &&
     decimalIsZero(
       data.amountPaid,
-    );
+    ) &&
+    paymentHistory.isSuccess &&
+    !hasActivePayment;
 
   const clientOptions:
     ClientListItemDto[] =
@@ -467,6 +523,25 @@ export function InvoiceDetailWorkspace({
           ) : null}
         </div>
       </section>
+
+      {organizationId &&
+      data.status !== "DRAFT" ? (
+        <InvoicePaymentPanel
+          invoice={data}
+          role={role}
+          payments={payments}
+          loading={
+            paymentHistory.isLoading
+          }
+          error={
+            paymentHistory.error instanceof
+            Error
+              ? paymentHistory.error
+              : null
+          }
+          onRefresh={refresh}
+        />
+      ) : null}
 
       <section className="mt-8 grid gap-5 lg:grid-cols-2">
         <PartySnapshot

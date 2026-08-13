@@ -56,6 +56,19 @@ const envSchema = z.object({
     .string()
     .email()
     .optional(),
+  // Stripe Checkout. Keep disabled until test-mode keys are configured.
+  // Mode/key matching is enforced lazily by config/stripe.ts so builds,
+  // migrations and non-payment development do not require Stripe secrets.
+  STRIPE_MODE: z
+    .enum(["disabled", "test", "live"])
+    .default("disabled"),
+  STRIPE_SECRET_KEY: z
+    .string()
+    .optional(),
+  STRIPE_WEBHOOK_SECRET: z
+    .string()
+    .optional(),
+
   APP_BASE_URL: z
     .string()
     .url()

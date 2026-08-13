@@ -143,6 +143,18 @@ export type FinalizeResult =
       invoice: InvoiceDetailRow;
     };
 
+export type VoidInvoiceResult =
+  | {
+      kind: "OK";
+      invoice: InvoiceDetailRow;
+    }
+  | {
+      kind: "ACTIVE_PAYMENT";
+    }
+  | {
+      kind: "NOT_VOIDABLE";
+    };
+
 function buildListWhere(
   organizationId: string,
   query: InvoiceListQuery,
@@ -289,141 +301,152 @@ async function finalizeOnce(
   organizationId: string,
   invoiceId: string,
 ): Promise<FinalizeResult> {
-  return prisma.$transaction(
-    async (tx) => {
-      const invoice =
-        await tx.invoice.findFirst({
-          where: {
-            id: invoiceId,
-            organizationId,
-          },
-          include: {
-            lineItems: {
-              select: {
-                id: true,
+  const transactionResult =
+    await prisma.$transaction(
+      async (tx) => {
+        const invoice =
+          await tx.invoice.findFirst({
+            where: {
+              id: invoiceId,
+              organizationId,
+            },
+            include: {
+              lineItems: {
+                select: {
+                  id: true,
+                },
               },
             },
-          },
-        });
+          });
 
-      if (!invoice) {
-        return {
-          kind: "NOT_FOUND",
-        } as const;
-      }
+        if (!invoice) {
+          return {
+            kind: "NOT_FOUND",
+          } as const;
+        }
 
-      if (invoice.status !== "DRAFT") {
-        return {
-          kind: "INVALID_STATUS",
-          status: invoice.status,
-        } as const;
-      }
+        if (invoice.status !== "DRAFT") {
+          return {
+            kind: "INVALID_STATUS",
+            status: invoice.status,
+          } as const;
+        }
 
-      if (invoice.lineItems.length === 0) {
-        return {
-          kind: "EMPTY",
-        } as const;
-      }
+        if (invoice.lineItems.length === 0) {
+          return {
+            kind: "EMPTY",
+          } as const;
+        }
 
-      const settings =
-        await tx.organizationInvoiceSettings.upsert({
-          where: {
-            organizationId,
-          },
-          create: {
-            organizationId,
-          },
-          update: {},
-        });
-
-      const issueDate =
-        invoice.issueDate ??
-        dateOnly(new Date());
-
-      const dueDate =
-        invoice.dueDate ??
-        addDays(
-          issueDate,
-          settings.defaultPaymentTermsDays,
-        );
-
-      if (dueDate < issueDate) {
-        throw new Error(
-          "INVOICE_DUE_DATE_BEFORE_ISSUE_DATE",
-        );
-      }
-
-      const allocation =
-        await tx.organizationInvoiceSettings.update({
-          where: {
-            organizationId,
-          },
-          data: {
-            nextInvoiceNumber: {
-              increment: 1,
+        const settings =
+          await tx.organizationInvoiceSettings.upsert({
+            where: {
+              organizationId,
             },
-          },
-        });
+            create: {
+              organizationId,
+            },
+            update: {},
+          });
 
-      const sequenceNumber =
-        allocation.nextInvoiceNumber - 1;
+        const issueDate =
+          invoice.issueDate ??
+          dateOnly(new Date());
 
-      const padded =
-        String(sequenceNumber).padStart(
-          allocation.numberPadding,
-          "0",
-        );
-
-      const invoiceNumber =
-        `${allocation.invoicePrefix}-${padded}`;
-
-      const updated =
-        await tx.invoice.updateMany({
-          where: {
-            id: invoiceId,
-            organizationId,
-            status: "DRAFT",
-          },
-          data: {
-            status: "SENT",
-            sequenceNumber,
-            invoiceNumber,
+        const dueDate =
+          invoice.dueDate ??
+          addDays(
             issueDate,
-            dueDate,
-            finalizedAt: new Date(),
-            sentAt: new Date(),
-          },
-        });
+            settings.defaultPaymentTermsDays,
+          );
 
-      if (updated.count !== 1) {
-        throw new Error(
-          "INVOICE_FINALIZE_CONCURRENT_CHANGE",
-        );
-      }
+        if (dueDate < issueDate) {
+          throw new Error(
+            "INVOICE_DUE_DATE_BEFORE_ISSUE_DATE",
+          );
+        }
 
-      const result =
-        await tx.invoice.findUnique({
-          where: {
-            id: invoiceId,
-          },
-          include: invoiceDetailInclude,
-        });
+        const allocation =
+          await tx.organizationInvoiceSettings.update({
+            where: {
+              organizationId,
+            },
+            data: {
+              nextInvoiceNumber: {
+                increment: 1,
+              },
+            },
+          });
 
-      if (!result) {
-        throw new Error(
-          "Finalized invoice disappeared.",
-        );
-      }
+        const sequenceNumber =
+          allocation.nextInvoiceNumber - 1;
 
-      return {
-        kind: "OK",
-        invoice: result,
-      } as const;
-    },
-    {
-      isolationLevel: "Serializable",
-    },
-  );
+        const padded =
+          String(sequenceNumber).padStart(
+            allocation.numberPadding,
+            "0",
+          );
+
+        const invoiceNumber =
+          `${allocation.invoicePrefix}-${padded}`;
+
+        const updated =
+          await tx.invoice.updateMany({
+            where: {
+              id: invoiceId,
+              organizationId,
+              status: "DRAFT",
+            },
+            data: {
+              status: "SENT",
+              sequenceNumber,
+              invoiceNumber,
+              issueDate,
+              dueDate,
+              finalizedAt: new Date(),
+              sentAt: new Date(),
+            },
+          });
+
+        if (updated.count !== 1) {
+          throw new Error(
+            "INVOICE_FINALIZE_CONCURRENT_CHANGE",
+          );
+        }
+
+        return {
+          kind: "OK",
+          invoiceId,
+        } as const;
+      },
+      {
+        isolationLevel: "Serializable",
+      },
+    );
+
+  if (transactionResult.kind !== "OK") {
+    return transactionResult;
+  }
+
+  const invoice =
+    await prisma.invoice.findFirst({
+      where: {
+        id: transactionResult.invoiceId,
+        organizationId,
+      },
+      include: invoiceDetailInclude,
+    });
+
+  if (!invoice) {
+    throw new Error(
+      "Finalized invoice disappeared.",
+    );
+  }
+
+  return {
+    kind: "OK",
+    invoice,
+  };
 }
 
 export const invoiceRepository = {
@@ -688,86 +711,90 @@ export const invoiceRepository = {
     snapshot: DraftSnapshotData,
     totals: CalculatedInvoiceTotals,
   ): Promise<InvoiceDetailRow> {
-    return prisma.$transaction(
-      async (tx) => {
-        const invoice =
-          await tx.invoice.create({
-            data: {
+    const invoiceId =
+      await prisma.$transaction(
+        async (tx) => {
+          const invoice =
+            await tx.invoice.create({
+              data: {
+                organizationId,
+                clientId: snapshot.clientId,
+                projectId:
+                  snapshot.projectId,
+                contactId:
+                  snapshot.contactId,
+                currency: snapshot.currency,
+                issueDate:
+                  snapshot.issueDate,
+                dueDate: snapshot.dueDate,
+
+                sellerName:
+                  snapshot.sellerName,
+                sellerEmail:
+                  snapshot.sellerEmail,
+                sellerPhone:
+                  snapshot.sellerPhone,
+                sellerAddress:
+                  snapshot.sellerAddress,
+                sellerTaxId:
+                  snapshot.sellerTaxId,
+
+                clientName:
+                  snapshot.clientName,
+                clientEmail:
+                  snapshot.clientEmail,
+                clientPhone:
+                  snapshot.clientPhone,
+                clientAddress:
+                  snapshot.clientAddress,
+                contactName:
+                  snapshot.contactName,
+                contactEmail:
+                  snapshot.contactEmail,
+
+                subtotal: totals.subtotal,
+                discountTotal:
+                  totals.discountTotal,
+                taxTotal: totals.taxTotal,
+                total: totals.total,
+                amountPaid:
+                  totals.amountPaid,
+                balanceDue:
+                  totals.balanceDue,
+
+                notes: snapshot.notes,
+                terms: snapshot.terms,
+              },
+            });
+
+          await tx.invoiceLineItem.createMany({
+            data: lineItemCreateManyData(
               organizationId,
-              clientId: snapshot.clientId,
-              projectId:
-                snapshot.projectId,
-              contactId:
-                snapshot.contactId,
-              currency: snapshot.currency,
-              issueDate:
-                snapshot.issueDate,
-              dueDate: snapshot.dueDate,
-
-              sellerName:
-                snapshot.sellerName,
-              sellerEmail:
-                snapshot.sellerEmail,
-              sellerPhone:
-                snapshot.sellerPhone,
-              sellerAddress:
-                snapshot.sellerAddress,
-              sellerTaxId:
-                snapshot.sellerTaxId,
-
-              clientName:
-                snapshot.clientName,
-              clientEmail:
-                snapshot.clientEmail,
-              clientPhone:
-                snapshot.clientPhone,
-              clientAddress:
-                snapshot.clientAddress,
-              contactName:
-                snapshot.contactName,
-              contactEmail:
-                snapshot.contactEmail,
-
-              subtotal: totals.subtotal,
-              discountTotal:
-                totals.discountTotal,
-              taxTotal: totals.taxTotal,
-              total: totals.total,
-              amountPaid:
-                totals.amountPaid,
-              balanceDue:
-                totals.balanceDue,
-
-              notes: snapshot.notes,
-              terms: snapshot.terms,
-            },
+              invoice.id,
+              totals.lineItems,
+            ),
           });
 
-        await tx.invoiceLineItem.createMany({
-          data: lineItemCreateManyData(
-            organizationId,
-            invoice.id,
-            totals.lineItems,
-          ),
-        });
+          return invoice.id;
+        },
+      );
 
-        const result =
-          await tx.invoice.findUnique({
-            where: {
-              id: invoice.id,
-            },
-            include: invoiceDetailInclude,
-          });
+    const result =
+      await prisma.invoice.findFirst({
+        where: {
+          id: invoiceId,
+          organizationId,
+        },
+        include: invoiceDetailInclude,
+      });
 
-        if (!result) {
-          throw new Error(
-            "Created invoice disappeared.",
-          );
-        }
+    if (!result) {
+      throw new Error(
+        "Created invoice disappeared.",
+      );
+    }
 
-        return result;
-      },
-    );
+    return result;
   },
 
   async updateDraft(
@@ -775,102 +802,110 @@ export const invoiceRepository = {
     invoiceId: string,
     data: UpdateDraftData,
   ): Promise<InvoiceDetailRow | null> {
-    return prisma.$transaction(
-      async (tx) => {
-        const updated =
-          await tx.invoice.updateMany({
-            where: {
-              id: invoiceId,
-              organizationId,
-              status: "DRAFT",
-            },
-            data: {
-              clientId: data.clientId,
-              projectId: data.projectId,
-              contactId: data.contactId,
-              currency: data.currency,
-              issueDate: data.issueDate,
-              dueDate: data.dueDate,
+    const updated =
+      await prisma.$transaction(
+        async (tx) => {
+          const write =
+            await tx.invoice.updateMany({
+              where: {
+                id: invoiceId,
+                organizationId,
+                status: "DRAFT",
+              },
+              data: {
+                clientId: data.clientId,
+                projectId: data.projectId,
+                contactId: data.contactId,
+                currency: data.currency,
+                issueDate: data.issueDate,
+                dueDate: data.dueDate,
 
-              sellerName:
-                data.sellerName,
-              sellerEmail:
-                data.sellerEmail,
-              sellerPhone:
-                data.sellerPhone,
-              sellerAddress:
-                data.sellerAddress,
-              sellerTaxId:
-                data.sellerTaxId,
+                sellerName:
+                  data.sellerName,
+                sellerEmail:
+                  data.sellerEmail,
+                sellerPhone:
+                  data.sellerPhone,
+                sellerAddress:
+                  data.sellerAddress,
+                sellerTaxId:
+                  data.sellerTaxId,
 
-              clientName:
-                data.clientName,
-              clientEmail:
-                data.clientEmail,
-              clientPhone:
-                data.clientPhone,
-              clientAddress:
-                data.clientAddress,
-              contactName:
-                data.contactName,
-              contactEmail:
-                data.contactEmail,
+                clientName:
+                  data.clientName,
+                clientEmail:
+                  data.clientEmail,
+                clientPhone:
+                  data.clientPhone,
+                clientAddress:
+                  data.clientAddress,
+                contactName:
+                  data.contactName,
+                contactEmail:
+                  data.contactEmail,
 
-              notes: data.notes,
-              terms: data.terms,
+                notes: data.notes,
+                terms: data.terms,
 
-              ...(data.totals
-                ? {
-                    subtotal:
-                      data.totals
-                        .subtotal,
-                    discountTotal:
-                      data.totals
-                        .discountTotal,
-                    taxTotal:
-                      data.totals.taxTotal,
-                    total:
-                      data.totals.total,
-                    amountPaid:
-                      data.totals
-                        .amountPaid,
-                    balanceDue:
-                      data.totals
-                        .balanceDue,
-                  }
-                : {}),
-            },
-          });
+                ...(data.totals
+                  ? {
+                      subtotal:
+                        data.totals
+                          .subtotal,
+                      discountTotal:
+                        data.totals
+                          .discountTotal,
+                      taxTotal:
+                        data.totals.taxTotal,
+                      total:
+                        data.totals.total,
+                      amountPaid:
+                        data.totals
+                          .amountPaid,
+                      balanceDue:
+                        data.totals
+                          .balanceDue,
+                    }
+                  : {}),
+              },
+            });
 
-        if (updated.count !== 1) {
-          return null;
-        }
+          if (write.count !== 1) {
+            return false;
+          }
 
-        if (data.totals) {
-          await tx.invoiceLineItem.deleteMany({
-            where: {
-              organizationId,
-              invoiceId,
-            },
-          });
+          if (data.totals) {
+            await tx.invoiceLineItem.deleteMany({
+              where: {
+                organizationId,
+                invoiceId,
+              },
+            });
 
-          await tx.invoiceLineItem.createMany({
-            data: lineItemCreateManyData(
-              organizationId,
-              invoiceId,
-              data.totals.lineItems,
-            ),
-          });
-        }
+            await tx.invoiceLineItem.createMany({
+              data: lineItemCreateManyData(
+                organizationId,
+                invoiceId,
+                data.totals.lineItems,
+              ),
+            });
+          }
 
-        return tx.invoice.findUnique({
-          where: {
-            id: invoiceId,
-          },
-          include: invoiceDetailInclude,
-        });
+          return true;
+        },
+      );
+
+    if (!updated) {
+      return null;
+    }
+
+    return prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        organizationId,
       },
-    );
+      include: invoiceDetailInclude,
+    });
   },
 
   async deleteDraft(
@@ -919,39 +954,140 @@ export const invoiceRepository = {
   async voidInvoice(
     organizationId: string,
     invoiceId: string,
-  ): Promise<InvoiceDetailRow | null> {
-    return prisma.$transaction(
-      async (tx) => {
-        const updated =
-          await tx.invoice.updateMany({
+  ): Promise<VoidInvoiceResult> {
+    const transactionResult =
+      await prisma.$transaction(
+        async (tx) => {
+          const locked =
+            await tx.$queryRaw<
+              Array<{
+                status: string;
+                amountPaid: string;
+              }>
+            >`
+              SELECT
+                "status"::text AS "status",
+                "amountPaid"::text AS "amountPaid"
+              FROM "Invoice"
+              WHERE
+                "id" = ${invoiceId}
+                AND "organizationId" = ${organizationId}
+              FOR UPDATE
+            `;
+
+          const invoice = locked[0];
+
+          if (
+            !invoice ||
+            (invoice.status !== "SENT" &&
+              invoice.status !== "OVERDUE") ||
+            !/^0(?:\.0+)?$/.test(
+              invoice.amountPaid,
+            )
+          ) {
+            return {
+              kind: "NOT_VOIDABLE",
+            } as const;
+          }
+
+          const now = new Date();
+
+          await tx.payment.updateMany({
             where: {
-              id: invoiceId,
               organizationId,
-              status: {
-                in: [
-                  "SENT",
-                  "OVERDUE",
-                ],
+              invoiceId,
+              activeCheckoutKey:
+                invoiceId,
+              status: "PENDING",
+              stripeCheckoutSessionId: null,
+              checkoutExpiresAt: {
+                lte: now,
               },
-              amountPaid: "0",
             },
             data: {
-              status: "VOID",
-              voidedAt: new Date(),
+              status: "EXPIRED",
+              activeCheckoutKey: null,
+              expiredAt: now,
             },
           });
 
-        if (updated.count !== 1) {
-          return null;
-        }
+          const activePayments =
+            await tx.payment.count({
+              where: {
+                organizationId,
+                invoiceId,
+                activeCheckoutKey:
+                  invoiceId,
+                status: {
+                  in: [
+                    "PENDING",
+                    "PROCESSING",
+                  ],
+                },
+              },
+            });
 
-        return tx.invoice.findUnique({
-          where: {
-            id: invoiceId,
-          },
-          include: invoiceDetailInclude,
-        });
-      },
-    );
+          if (activePayments > 0) {
+            return {
+              kind: "ACTIVE_PAYMENT",
+            } as const;
+          }
+
+          const updated =
+            await tx.invoice.updateMany({
+              where: {
+                id: invoiceId,
+                organizationId,
+                status: {
+                  in: [
+                    "SENT",
+                    "OVERDUE",
+                  ],
+                },
+                amountPaid: "0",
+              },
+              data: {
+                status: "VOID",
+                voidedAt: now,
+              },
+            });
+
+          if (updated.count !== 1) {
+            return {
+              kind: "NOT_VOIDABLE",
+            } as const;
+          }
+
+          return {
+            kind: "OK",
+          } as const;
+        },
+      );
+
+    if (
+      transactionResult.kind !== "OK"
+    ) {
+      return transactionResult;
+    }
+
+    const invoice =
+      await prisma.invoice.findFirst({
+        where: {
+          id: invoiceId,
+          organizationId,
+        },
+        include: invoiceDetailInclude,
+      });
+
+    if (!invoice) {
+      throw new Error(
+        "Voided invoice disappeared.",
+      );
+    }
+
+    return {
+      kind: "OK",
+      invoice,
+    };
   },
 };

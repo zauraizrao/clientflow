@@ -1176,19 +1176,36 @@ export const invoiceService = {
       return toDto(existing);
     }
 
-    const updated =
+    const voidResult =
       await invoiceRepository.voidInvoice(
         actor.organizationId,
         invoiceId,
       );
 
-    if (!updated) {
+    if (
+      voidResult.kind ===
+      "ACTIVE_PAYMENT"
+    ) {
+      throw new AppError(
+        409,
+        "ACTIVE_PAYMENT_CHECKOUT",
+        "This invoice has an active payment checkout. Let it complete or expire before voiding the invoice.",
+      );
+    }
+
+    if (
+      voidResult.kind ===
+      "NOT_VOIDABLE"
+    ) {
       throw new AppError(
         409,
         "INVOICE_VOID_CONFLICT",
         "This invoice cannot be voided in its current state.",
       );
     }
+
+    const updated =
+      voidResult.invoice;
 
     const recipients =
       await notificationService.clientAudience(

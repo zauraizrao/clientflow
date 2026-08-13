@@ -1,9 +1,12 @@
 import type {
+  CreateInvoiceCheckoutInput,
+  CreateInvoiceCheckoutResponse,
   CreateInvoiceDraftInput,
   InvoiceDto,
   InvoiceListQuery,
   InvoiceListResponse,
   InvoiceSettingsDto,
+  PaymentListResponse,
   UpdateInvoiceDraftInput,
   UpdateInvoiceSettingsInput,
 } from "@clientflow/contracts";
@@ -90,6 +93,17 @@ export const invoiceKeys = {
       "invoices",
       organizationId,
       "settings",
+    ] as const,
+  payments: (
+    organizationId: string,
+    invoiceId: string,
+  ) =>
+    [
+      "invoices",
+      organizationId,
+      "detail",
+      invoiceId,
+      "payments",
     ] as const,
 };
 
@@ -218,6 +232,27 @@ export const invoiceApi = {
       `/api/backend/invoices/${invoiceId}/void`,
       {
         method: "POST",
+      },
+    );
+  },
+
+  listPayments(
+    invoiceId: string,
+  ): Promise<PaymentListResponse> {
+    return apiRequest<PaymentListResponse>(
+      `/api/backend/invoices/${invoiceId}/payments`,
+    );
+  },
+
+  createCheckout(
+    invoiceId: string,
+    input: CreateInvoiceCheckoutInput,
+  ): Promise<CreateInvoiceCheckoutResponse> {
+    return apiRequest<CreateInvoiceCheckoutResponse>(
+      `/api/backend/invoices/${invoiceId}/payments/checkout`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
       },
     );
   },

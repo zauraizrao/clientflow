@@ -289,6 +289,39 @@ export const notificationRepository = {
     );
   },
 
+  async listBillingAudience(
+    organizationId: string,
+    clientId: string,
+  ): Promise<string[]> {
+    const members =
+      await prisma.organizationMember.findMany({
+        where: {
+          organizationId,
+          OR: [
+            {
+              role: {
+                in: [
+                  "ADMIN",
+                  "MANAGER",
+                ],
+              },
+            },
+            {
+              role: "CLIENT",
+              clientId,
+            },
+          ],
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    return members.map(
+      (member) => member.id,
+    );
+  },
+
   async listProjectAudience(
     organizationId: string,
     projectId: string,
@@ -423,6 +456,7 @@ export const notificationRepository = {
     commentId: string | null;
     fileId: string | null;
     invoiceId: string | null;
+    paymentId: string | null;
     dedupeKey: string;
     inAppEnabled: boolean;
     emailEnabled: boolean;
@@ -461,6 +495,7 @@ export const notificationRepository = {
             commentId: input.commentId,
             fileId: input.fileId,
             invoiceId: input.invoiceId,
+            paymentId: input.paymentId,
             dedupeKey: input.dedupeKey,
             ...(input.metadata === undefined
               ? {}

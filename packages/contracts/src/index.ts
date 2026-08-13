@@ -1397,6 +1397,7 @@ export type NotificationDto = {
   commentId: string | null;
   fileId: string | null;
   invoiceId: string | null;
+  paymentId: string | null;
   readAt: string | null;
   isRead: boolean;
   metadata: unknown;
@@ -1818,3 +1819,106 @@ export type InvoiceListResponse = {
   items: InvoiceListItemDto[];
   pagination: PaginationMeta;
 };
+
+/* =========================================================
+   MODULE 8 - PAYMENTS
+   ========================================================= */
+
+export const paymentStatusSchema = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELED",
+  "EXPIRED",
+  "PARTIALLY_REFUNDED",
+  "REFUNDED",
+]);
+
+export type PaymentStatus = z.infer<
+  typeof paymentStatusSchema
+>;
+
+const paymentAmountSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:0|[1-9]\d{0,14})(?:\.\d{1,4})?$/,
+    "Payment amount must be a positive decimal with at most 4 decimal places.",
+  )
+  .refine(
+    (value) =>
+      !/^0(?:\.0{1,4})?$/.test(
+        value,
+      ),
+    "Payment amount must be greater than zero.",
+  );
+
+export const createInvoiceCheckoutSchema = z
+  .object({
+    amount:
+      paymentAmountSchema.optional(),
+  })
+  .strict();
+
+export type CreateInvoiceCheckoutInput = z.infer<
+  typeof createInvoiceCheckoutSchema
+>;
+
+export type PaymentActorDto = {
+  membershipId: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  role: OrganizationRole;
+};
+
+export type PaymentDto = {
+  id: string;
+  organizationId: string;
+  invoiceId: string;
+  initiatedById: string | null;
+  status: PaymentStatus;
+  currency: string;
+  amount: string;
+  amountMinor: string | null;
+  refundedAmount: string;
+
+  stripeCheckoutSessionId:
+    string | null;
+  stripePaymentIntentId:
+    string | null;
+  stripeChargeId: string | null;
+  stripePaymentMethodType:
+    string | null;
+  checkoutExpiresAt: string | null;
+
+  failureCode: string | null;
+  failureMessage: string | null;
+
+  processingAt: string | null;
+  succeededAt: string | null;
+  failedAt: string | null;
+  canceledAt: string | null;
+  expiredAt: string | null;
+  refundedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  initiatedBy:
+    PaymentActorDto | null;
+};
+
+export type PaymentListResponse = {
+  items: PaymentDto[];
+};
+
+export type CreateInvoiceCheckoutResponse = {
+  payment: PaymentDto;
+  checkout: {
+    url: string;
+    expiresAt: string;
+  };
+  reused: boolean;
+};
+

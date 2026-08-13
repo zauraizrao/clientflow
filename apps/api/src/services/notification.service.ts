@@ -45,6 +45,7 @@ function toDto(
     commentId: notification.commentId,
     fileId: notification.fileId,
     invoiceId: notification.invoiceId,
+    paymentId: notification.paymentId,
     readAt:
       notification.readAt?.toISOString() ??
       null,
@@ -154,6 +155,7 @@ export type PublishNotificationInput = {
   commentId?: string | null;
   fileId?: string | null;
   invoiceId?: string | null;
+  paymentId?: string | null;
   dedupeKey: string;
   metadata?: Prisma.InputJsonValue;
 };
@@ -361,6 +363,7 @@ export const notificationService = {
             input.commentId ?? null,
           fileId: input.fileId ?? null,
           invoiceId: input.invoiceId ?? null,
+          paymentId: input.paymentId ?? null,
           dedupeKey:
             input.dedupeKey,
           inAppEnabled,
@@ -415,6 +418,16 @@ export const notificationService = {
     clientId: string,
   ): Promise<string[]> {
     return notificationRepository.listClientAudience(
+      organizationId,
+      clientId,
+    );
+  },
+
+  billingAudience(
+    organizationId: string,
+    clientId: string,
+  ): Promise<string[]> {
+    return notificationRepository.listBillingAudience(
       organizationId,
       clientId,
     );
