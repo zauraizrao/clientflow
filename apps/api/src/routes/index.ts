@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { authRouter } from "./auth.routes.js";
 import { clientRouter } from "./client.routes.js";
+import { collaborationRouter } from "./collaboration.routes.js";
 import { healthRouter } from "./health.routes.js";
 import { meRouter } from "./me.routes.js";
 import { projectRouter } from "./project.routes.js";
@@ -16,3 +17,4 @@ apiRouter.use("/rbac", rbacRouter);
 
 apiRouter.use("/clients", clientRouter);
 apiRouter.use("/projects", projectRouter);
+apiRouter.use("/projects", collaborationRouter);

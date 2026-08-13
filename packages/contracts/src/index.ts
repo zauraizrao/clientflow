@@ -1053,3 +1053,236 @@ export type TaskListResponse = {
   items: TaskListItemDto[];
   pagination: PaginationMeta;
 };
+
+/* =========================================================
+   MODULE 5 - COLLABORATION
+   ========================================================= */
+
+export const collaborationVisibilitySchema = z.enum([
+  "INTERNAL",
+  "CLIENT",
+]);
+
+export type CollaborationVisibility = z.infer<
+  typeof collaborationVisibilitySchema
+>;
+
+export const fileAssetStatusSchema = z.enum([
+  "PENDING",
+  "READY",
+  "FAILED",
+  "DELETED",
+]);
+
+export type FileAssetStatus = z.infer<
+  typeof fileAssetStatusSchema
+>;
+
+export const projectCollaborationIdParamSchema = z.object({
+  projectId: z.string().uuid("Invalid project ID."),
+});
+
+export const projectFileIdParamSchema = z.object({
+  projectId: z.string().uuid("Invalid project ID."),
+  fileId: z.string().uuid("Invalid file ID."),
+});
+
+export const projectCommentIdParamSchema = z.object({
+  projectId: z.string().uuid("Invalid project ID."),
+  commentId: z.string().uuid("Invalid comment ID."),
+});
+
+export type ProjectCollaborationIdParam = z.infer<
+  typeof projectCollaborationIdParamSchema
+>;
+export type ProjectFileIdParam = z.infer<
+  typeof projectFileIdParamSchema
+>;
+export type ProjectCommentIdParam = z.infer<
+  typeof projectCommentIdParamSchema
+>;
+
+export const createFileUploadIntentSchema = z
+  .object({
+    originalName: z
+      .string()
+      .trim()
+      .min(1, "File name is required.")
+      .max(255, "File name is too long."),
+    mimeType: z
+      .string()
+      .trim()
+      .min(1, "MIME type is required.")
+      .max(150, "MIME type is too long."),
+    sizeBytes: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(25 * 1024 * 1024, "Files may not be larger than 25 MB."),
+    taskId: z.union([
+      z.string().uuid("Invalid task ID."),
+      z.null(),
+    ]).optional(),
+    commentId: z.union([
+      z.string().uuid("Invalid comment ID."),
+      z.null(),
+    ]).optional(),
+    visibility: collaborationVisibilitySchema.optional(),
+  })
+  .refine(
+    (value) => !(value.taskId && value.commentId),
+    "A file can attach to a task or a comment, not both.",
+  );
+
+export type CreateFileUploadIntentInput = z.infer<
+  typeof createFileUploadIntentSchema
+>;
+
+export const fileListQuerySchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  taskId: z.string().uuid("Invalid task ID.").optional(),
+  commentId: z.string().uuid("Invalid comment ID.").optional(),
+  visibility: collaborationVisibilitySchema.optional(),
+  status: fileAssetStatusSchema.default("READY"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sortOrder: sortOrderSchema.default("desc"),
+});
+
+export type FileListQuery = z.infer<typeof fileListQuerySchema>;
+
+export const createCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment cannot be empty.").max(10000),
+  taskId: z.union([
+    z.string().uuid("Invalid task ID."),
+    z.null(),
+  ]).optional(),
+  parentCommentId: z.union([
+    z.string().uuid("Invalid parent comment ID."),
+    z.null(),
+  ]).optional(),
+  visibility: collaborationVisibilitySchema.optional(),
+});
+
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+export const updateCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment cannot be empty.").max(10000),
+});
+
+export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;
+
+export const commentListQuerySchema = z.object({
+  taskId: z.string().uuid("Invalid task ID.").optional(),
+  visibility: collaborationVisibilitySchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  sortOrder: sortOrderSchema.default("asc"),
+});
+
+export type CommentListQuery = z.infer<typeof commentListQuerySchema>;
+
+export const activityListQuerySchema = z.object({
+  taskId: z.string().uuid("Invalid task ID.").optional(),
+  type: z.string().trim().max(100).optional(),
+  visibility: collaborationVisibilitySchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+export type ActivityListQuery = z.infer<typeof activityListQuerySchema>;
+
+export type CollaborationActorDto = {
+  organizationMemberId: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+export type FileAssetDto = {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  taskId: string | null;
+  commentId: string | null;
+  uploadedById: string | null;
+  originalName: string;
+  mimeType: string;
+  extension: string | null;
+  sizeBytes: number;
+  visibility: CollaborationVisibility;
+  status: FileAssetStatus;
+  uploader: CollaborationActorDto | null;
+  completedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FileListResponse = {
+  items: FileAssetDto[];
+  pagination: PaginationMeta;
+};
+
+export type FileUploadIntentResponse = {
+  file: FileAssetDto;
+  upload: {
+    bucket: string;
+    path: string;
+    token: string;
+    signedUrl: string;
+    expiresInSeconds: number;
+  };
+};
+
+export type FileDownloadResponse = {
+  url: string;
+  expiresInSeconds: number;
+};
+
+export type CommentDto = {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  taskId: string | null;
+  authorId: string | null;
+  parentCommentId: string | null;
+  body: string | null;
+  visibility: CollaborationVisibility;
+  author: CollaborationActorDto | null;
+  authorName: string | null;
+  editedAt: string | null;
+  deletedAt: string | null;
+  isDeleted: boolean;
+  files: FileAssetDto[];
+  replyCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CommentListResponse = {
+  items: CommentDto[];
+  pagination: PaginationMeta;
+};
+
+export type ActivityEventDto = {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  taskId: string | null;
+  commentId: string | null;
+  fileId: string | null;
+  actorId: string | null;
+  type: string;
+  visibility: CollaborationVisibility;
+  actor: CollaborationActorDto | null;
+  actorName: string | null;
+  metadata: unknown;
+  createdAt: string;
+};
+
+export type ActivityListResponse = {
+  items: ActivityEventDto[];
+  pagination: PaginationMeta;
+};

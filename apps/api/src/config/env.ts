@@ -23,6 +23,17 @@ const envSchema = z.object({
 
   INTERNAL_TOKEN_ISSUER: z.string().default("clientflow-web"),
   INTERNAL_TOKEN_AUDIENCE: z.string().default("clientflow-api"),
+
+  SUPABASE_URL: z
+    .string()
+    .url("SUPABASE_URL must be a valid project URL"),
+  SUPABASE_SECRET_KEY: z
+    .string()
+    .min(20, "SUPABASE_SECRET_KEY is required"),
+  SUPABASE_STORAGE_BUCKET: z
+    .string()
+    .min(1)
+    .default("clientflow-files"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

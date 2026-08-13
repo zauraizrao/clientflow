@@ -48,6 +48,18 @@ enum TaskPriority {
   URGENT
 }
 
+enum CollaborationVisibility {
+  INTERNAL
+  CLIENT
+}
+
+enum FileAssetStatus {
+  PENDING
+  READY
+  FAILED
+  DELETED
+}
+
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
@@ -63,6 +75,10 @@ model Organization {
   projectColumns     ProjectColumn[]
   tasks              Task[]
   taskAssignees      TaskAssignee[]
+
+  files          FileAsset[]
+  comments       Comment[]
+  activityEvents ActivityEvent[]
 
   @@index([name])
 }
@@ -103,6 +119,10 @@ model OrganizationMember {
   @@unique([organizationId, userId])
   @@index([organizationId, role])
   @@index([userId])
+  uploadedFiles   FileAsset[]     @relation("FileUploader")
+  comments        Comment[]       @relation("CommentAuthor")
+  activityEvents  ActivityEvent[] @relation("ActivityActor")
+
   @@index([clientId])
 }
 
@@ -178,6 +198,10 @@ model Project {
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([clientId])
+  files          FileAsset[]
+  comments       Comment[]
+  activityEvents ActivityEvent[]
+
   @@index([dueDate])
 }
 
@@ -255,6 +279,10 @@ model Task {
   @@index([organizationId, priority])
   @@index([projectId, projectColumnId, position])
   @@index([dueDate])
+  files          FileAsset[]
+  comments       Comment[]
+  activityEvents ActivityEvent[]
+
   @@index([completedAt])
 }
 
@@ -273,3 +301,101 @@ model TaskAssignee {
   @@index([organizationId, taskId])
   @@index([organizationId, organizationMemberId])
 }
+model FileAsset {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  projectId      String                   @db.Uuid
+  taskId         String?                  @db.Uuid
+  commentId      String?                  @db.Uuid
+  uploadedById   String?                  @db.Uuid
+  originalName   String
+  storageBucket  String                   @default("clientflow-files")
+  storagePath    String                   @unique
+  mimeType       String
+  extension      String?
+  sizeBytes      Int
+  visibility     CollaborationVisibility  @default(INTERNAL)
+  status         FileAssetStatus          @default(PENDING)
+  failureReason  String?
+  completedAt    DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  comment      Comment?            @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  uploadedBy   OrganizationMember? @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  activityEvents ActivityEvent[]
+
+  @@index([organizationId, projectId, createdAt])
+  @@index([projectId, taskId])
+  @@index([commentId])
+  @@index([uploadedById])
+  @@index([organizationId, visibility, status])
+  @@index([deletedAt])
+}
+
+model Comment {
+  id              String                   @id @default(uuid()) @db.Uuid
+  organizationId  String                   @db.Uuid
+  projectId       String                   @db.Uuid
+  taskId          String?                  @db.Uuid
+  authorId        String?                  @db.Uuid
+  parentCommentId String?                  @db.Uuid
+  body            String                   @db.Text
+  visibility      CollaborationVisibility  @default(INTERNAL)
+  authorName      String?
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  author       OrganizationMember? @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parentComment Comment?           @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: SetNull)
+  replies       Comment[]          @relation("CommentReplies")
+  files         FileAsset[]
+  activityEvents ActivityEvent[]
+
+  @@index([organizationId, projectId, createdAt])
+  @@index([projectId, taskId, createdAt])
+  @@index([parentCommentId])
+  @@index([authorId])
+  @@index([organizationId, visibility])
+  @@index([deletedAt])
+}
+
+model ActivityEvent {
+  id               String                   @id @default(uuid()) @db.Uuid
+  organizationId   String                   @db.Uuid
+  projectId        String                   @db.Uuid
+  taskId           String?                  @db.Uuid
+  commentId        String?                  @db.Uuid
+  fileId           String?                  @db.Uuid
+  actorId          String?                  @db.Uuid
+  type             String
+  visibility       CollaborationVisibility  @default(INTERNAL)
+  actorName        String?
+  metadata         Json?
+  createdAt        DateTime                 @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task         Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  comment      Comment?            @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  file         FileAsset?          @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  actor        OrganizationMember? @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, projectId, createdAt])
+  @@index([projectId, taskId, createdAt])
+  @@index([commentId])
+  @@index([fileId])
+  @@index([actorId])
+  @@index([organizationId, visibility, createdAt])
+  @@index([type, createdAt])
+}
+

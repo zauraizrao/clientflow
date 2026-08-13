@@ -1,4 +1,4 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 
 # Secrets
@@ -38,3 +38,7 @@ test-results/
 coverage/
 .module3-frontend-backup-*/
 .module4-frontend-backup-*/
+.module5-m52-*/
+.module5-m53-*/
+.module5-backup-*/
+

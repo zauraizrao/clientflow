@@ -25,6 +25,7 @@ import {
   type TeamOptionRow,
 } from "../models/repositories/project.repository.js";
 import { AppError } from "../utils/app-error.js";
+import { activityService } from "./activity.service.js";
 
 export type ProjectActor = {
   userId: string;
@@ -510,6 +511,18 @@ export const projectService = {
         team.leadMemberId,
       );
 
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId: project.id,
+      actorId: actor.membershipId,
+      type: "project.created",
+      visibility: "INTERNAL",
+      metadata: {
+        name: project.name,
+        status: project.status,
+      },
+    });
+
     return toProjectDetailDto(project);
   },
 
@@ -553,6 +566,18 @@ export const projectService = {
     if (!project) {
       throw projectNotFound();
     }
+
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId: project.id,
+      actorId: actor.membershipId,
+      type: "project.updated",
+      visibility: "INTERNAL",
+      metadata: {
+        name: project.name,
+        status: project.status,
+      },
+    });
 
     return toProjectDetailDto(project);
   },

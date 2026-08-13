@@ -1,6 +1,6 @@
-# ClientFlow Development Progress
+﻿# ClientFlow Development Progress
 
-## Module 1 — Foundations
+## Module 1 â€” Foundations
 
 - [x] Architecture decisions
 - [x] Monorepo structure
@@ -37,7 +37,7 @@
 - [ ] Confirm `pnpm typecheck`
 - [ ] Module 1 verification completed
 
-## Module 2 — Auth & RBAC
+## Module 2 â€” Auth & RBAC
 
 - [ ] Authentication architecture decision
 - [ ] Auth.js
@@ -55,7 +55,7 @@
 - [ ] Protected API routes
 - [ ] Module 2 verification
 
-## Module 3 — CRM
+## Module 3 â€” CRM
 
 - [ ] Client companies CRUD
 - [ ] Contacts CRUD
@@ -66,7 +66,7 @@
 - [ ] Sorting
 - [ ] Pagination
 
-## Module 4 — Projects & Tasks
+## Module 4 â€” Projects & Tasks
 
 - [ ] Project CRUD
 - [ ] Task CRUD
@@ -78,7 +78,7 @@
 - [ ] List view
 - [ ] Kanban view
 
-## Module 5 — Files & Comments
+## Module 5 â€” Files & Comments
 
 - [ ] File storage
 - [ ] Project attachments
@@ -86,7 +86,7 @@
 - [ ] Comments
 - [ ] Activity feed
 
-## Module 6 — Notifications
+## Module 6 â€” Notifications
 
 - [ ] Resend
 - [ ] Assignment email
@@ -94,7 +94,7 @@
 - [ ] Status-change email
 - [ ] BullMQ queue
 
-## Module 7 — Invoicing
+## Module 7 â€” Invoicing
 
 - [ ] Invoice builder
 - [ ] Line items
@@ -102,14 +102,14 @@
 - [ ] Invoice numbering
 - [ ] PDF generation
 
-## Module 8 — Stripe
+## Module 8 â€” Stripe
 
 - [ ] Stripe test mode
 - [ ] Checkout
 - [ ] Webhooks
 - [ ] Payment status sync
 
-## Module 9 — Background Jobs
+## Module 9 â€” Background Jobs
 
 - [ ] Redis
 - [ ] BullMQ
@@ -119,20 +119,20 @@
 - [ ] Retries
 - [ ] Failed jobs
 
-## Module 10 — Client Portal
+## Module 10 â€” Client Portal
 
 - [ ] Client-only project access
 - [ ] Client-only invoice access
 - [ ] Payment button
 
-## Module 11 — Analytics
+## Module 11 â€” Analytics
 
 - [ ] Revenue
 - [ ] Task throughput
 - [ ] Overdue invoices
 - [ ] Active projects
 
-## Module 12 — Deploy & Polish
+## Module 12 â€” Deploy & Polish
 
 - [ ] Vercel
 - [ ] Render
@@ -176,3 +176,32 @@ Completed: 2026-08-13
 
 ### Next
 Module 5 - Files and Comments
+## Module 5 - Files, Comments & Activity
+
+Status: COMPLETE
+
+Delivered:
+- Private Supabase Storage integration with 25 MB application file limit.
+- Project files, task attachments and comment attachments.
+- Signed upload intents, direct private uploads, signed downloads and deletion flow.
+- INTERNAL and CLIENT visibility controls.
+- Project and task comments with threaded replies.
+- Edit-own and soft-delete comment behavior.
+- Project/task/comment/file activity events.
+- Project workspace Files, Comments and Activity views.
+- Task-level Collaboration tabs for Comments, Files and Activity.
+- Upload progress, file search, pagination and visibility filters.
+- Tenant-aware RBAC and project-access enforcement.
+
+Verified:
+- Prisma migration deployed and schema up to date.
+- API TypeScript typecheck passed.
+- Collaboration API smoke passed.
+- Real private Storage upload -> complete -> signed download -> content integrity -> delete smoke passed.
+- M5.3 frontend TypeScript typecheck passed.
+- Production build passed.
+- Browser UI verified: internal files, client-visible files, internal comments, client-visible comments, threaded replies, comment editing, comment attachments and activity feed.
+
+Next:
+- Module 6 - Notifications.
+

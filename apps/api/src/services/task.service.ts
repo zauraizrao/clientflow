@@ -25,6 +25,7 @@ import {
   type ProjectActor,
 } from "./project.service.js";
 import { AppError } from "../utils/app-error.js";
+import { activityService } from "./activity.service.js";
 
 type TaskColumnRecord = {
   id: string;
@@ -438,6 +439,20 @@ export const taskService = {
         : null,
     );
 
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId,
+      taskId: task.id,
+      actorId: actor.membershipId,
+      type: "task.created",
+      visibility: "INTERNAL",
+      metadata: {
+        title: task.title,
+        parentTaskId: task.parentTaskId,
+        priority: task.priority,
+      },
+    });
+
     return toTaskDetailDto(task);
   },
 
@@ -494,6 +509,19 @@ export const taskService = {
       throw taskNotFound();
     }
 
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId,
+      taskId: task.id,
+      actorId: actor.membershipId,
+      type: "task.updated",
+      visibility: "INTERNAL",
+      metadata: {
+        title: task.title,
+        priority: task.priority,
+      },
+    });
+
     return toTaskDetailDto(task);
   },
 
@@ -542,6 +570,27 @@ export const taskService = {
       throw taskNotFound();
     }
 
+    const activityType =
+      task.completedAt && !existing.completedAt
+        ? "task.completed"
+        : !task.completedAt && existing.completedAt
+          ? "task.reopened"
+          : "task.moved";
+
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId,
+      taskId: task.id,
+      actorId: actor.membershipId,
+      type: activityType,
+      visibility: "INTERNAL",
+      metadata: {
+        title: task.title,
+        fromColumnId: existing.projectColumnId,
+        toColumnId: task.projectColumnId,
+      },
+    });
+
     return toTaskDetailDto(task);
   },
 
@@ -571,6 +620,18 @@ export const taskService = {
       project,
       existing,
     );
+
+    await activityService.recordBestEffort({
+      organizationId: actor.organizationId,
+      projectId,
+      taskId,
+      actorId: actor.membershipId,
+      type: "task.deleted",
+      visibility: "INTERNAL",
+      metadata: {
+        title: existing.title,
+      },
+    });
 
     const deleted = await taskRepository.deleteTask(
       actor.organizationId,
