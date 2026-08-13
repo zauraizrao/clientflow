@@ -1396,6 +1396,7 @@ export type NotificationDto = {
   taskId: string | null;
   commentId: string | null;
   fileId: string | null;
+  invoiceId: string | null;
   readAt: string | null;
   isRead: boolean;
   metadata: unknown;
@@ -1412,4 +1413,408 @@ export type NotificationPreferenceDto = {
   category: NotificationCategory;
   inAppEnabled: boolean;
   emailEnabled: boolean;
+};
+
+/* =========================================================
+   MODULE 7 - INVOICING
+   ========================================================= */
+
+export const invoiceStatusSchema = z.enum([
+  "DRAFT",
+  "SENT",
+  "PARTIALLY_PAID",
+  "PAID",
+  "OVERDUE",
+  "VOID",
+]);
+
+export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
+
+export const invoiceCurrencySchema = z
+  .string()
+  .trim()
+  .length(3, "Currency must use a 3-letter ISO code.")
+  .regex(/^[A-Za-z]{3}$/, "Currency must contain letters only.")
+  .transform((value) => value.toUpperCase());
+
+const invoiceQuantitySchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:0|[1-9]\d{0,5})(?:\.\d{1,4})?$/,
+    "Quantity must be a positive decimal with at most 4 decimal places.",
+  )
+  .refine(
+    (value) => !/^0(?:\.0{1,4})?$/.test(value),
+    "Quantity must be greater than zero.",
+  );
+
+const invoiceUnitPriceSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:0|[1-9]\d{0,7})(?:\.\d{1,4})?$/,
+    "Unit price must be a non-negative decimal with at most 4 decimal places.",
+  );
+
+const invoicePercentSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:0|[1-9]\d{0,2})(?:\.\d{1,4})?$/,
+    "Percentage must use at most 4 decimal places.",
+  )
+  .refine(
+    (value) => Number(value) <= 100,
+    "Percentage cannot exceed 100.",
+  );
+
+const invoiceNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Name is required.")
+  .max(160, "Name is too long.");
+
+const invoiceDateSchema = dateOnlySchema.refine((value) => {
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}, "Enter a valid calendar date.");
+
+const optionalInvoiceDateSchema = z
+  .union([invoiceDateSchema, z.literal(""), z.null()])
+  .transform((value) => {
+    if (value === "" || value === null) {
+      return null;
+    }
+
+    return value;
+  });
+
+export const invoiceLineItemInputSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, "Line item description is required.")
+    .max(500, "Line item description is too long."),
+  quantity: invoiceQuantitySchema,
+  unitPrice: invoiceUnitPriceSchema,
+  discountPercent: invoicePercentSchema.default("0"),
+  taxPercent: invoicePercentSchema.default("0"),
+});
+
+export type InvoiceLineItemInput = z.infer<
+  typeof invoiceLineItemInputSchema
+>;
+
+function validateInvoiceDates(
+  value: {
+    issueDate?: string | null;
+    dueDate?: string | null;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (
+    value.issueDate &&
+    value.dueDate &&
+    value.dueDate < value.issueDate
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["dueDate"],
+      message: "Due date cannot be earlier than issue date.",
+    });
+  }
+}
+
+const invoiceDraftFields = {
+  clientId: z.string().uuid("Invalid client ID."),
+  projectId: optionalUuidSchema.optional(),
+  contactId: optionalUuidSchema.optional(),
+  currency: invoiceCurrencySchema.optional(),
+  issueDate: optionalInvoiceDateSchema.optional(),
+  dueDate: optionalInvoiceDateSchema.optional(),
+
+  sellerName: invoiceNameSchema.optional(),
+  sellerEmail: optionalEmailSchema.optional(),
+  sellerPhone: optionalTextSchema(40).optional(),
+  sellerAddress: optionalTextSchema(2000).optional(),
+  sellerTaxId: optionalTextSchema(120).optional(),
+
+  clientName: invoiceNameSchema.optional(),
+  clientEmail: optionalEmailSchema.optional(),
+  clientPhone: optionalTextSchema(40).optional(),
+  clientAddress: optionalTextSchema(2000).optional(),
+
+  contactName: optionalTextSchema(160).optional(),
+  contactEmail: optionalEmailSchema.optional(),
+
+  notes: optionalTextSchema(5000).optional(),
+  terms: optionalTextSchema(5000).optional(),
+};
+
+export const createInvoiceDraftSchema = z
+  .object({
+    ...invoiceDraftFields,
+    lineItems: z
+      .array(invoiceLineItemInputSchema)
+      .min(1, "Add at least one invoice line item.")
+      .max(100, "An invoice may contain at most 100 line items."),
+  })
+  .superRefine(validateInvoiceDates);
+
+export type CreateInvoiceDraftInput = z.infer<
+  typeof createInvoiceDraftSchema
+>;
+
+export const updateInvoiceDraftSchema = z
+  .object({
+    clientId:
+      invoiceDraftFields.clientId.optional(),
+    projectId:
+      invoiceDraftFields.projectId.optional(),
+    contactId:
+      invoiceDraftFields.contactId.optional(),
+    currency:
+      invoiceDraftFields.currency.optional(),
+    issueDate:
+      invoiceDraftFields.issueDate.optional(),
+    dueDate:
+      invoiceDraftFields.dueDate.optional(),
+
+    sellerName:
+      invoiceDraftFields.sellerName.optional(),
+    sellerEmail:
+      invoiceDraftFields.sellerEmail.optional(),
+    sellerPhone:
+      invoiceDraftFields.sellerPhone.optional(),
+    sellerAddress:
+      invoiceDraftFields.sellerAddress.optional(),
+    sellerTaxId:
+      invoiceDraftFields.sellerTaxId.optional(),
+
+    clientName:
+      invoiceDraftFields.clientName.optional(),
+    clientEmail:
+      invoiceDraftFields.clientEmail.optional(),
+    clientPhone:
+      invoiceDraftFields.clientPhone.optional(),
+    clientAddress:
+      invoiceDraftFields.clientAddress.optional(),
+
+    contactName:
+      invoiceDraftFields.contactName.optional(),
+    contactEmail:
+      invoiceDraftFields.contactEmail.optional(),
+
+    notes:
+      invoiceDraftFields.notes.optional(),
+    terms:
+      invoiceDraftFields.terms.optional(),
+
+    lineItems: z
+      .array(invoiceLineItemInputSchema)
+      .min(1, "Add at least one invoice line item.")
+      .max(100, "An invoice may contain at most 100 line items.")
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value).length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "At least one invoice field must be provided.",
+      });
+    }
+
+    validateInvoiceDates(value, context);
+  });
+
+export type UpdateInvoiceDraftInput = z.infer<
+  typeof updateInvoiceDraftSchema
+>;
+
+export const updateInvoiceSettingsSchema = z
+  .object({
+    businessName: optionalTextSchema(160).optional(),
+    billingEmail: optionalEmailSchema.optional(),
+    billingPhone: optionalTextSchema(40).optional(),
+    billingAddress: optionalTextSchema(2000).optional(),
+    taxId: optionalTextSchema(120).optional(),
+    defaultCurrency: invoiceCurrencySchema.optional(),
+    invoicePrefix: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20)
+      .regex(
+        /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/,
+        "Invoice prefix may contain letters, numbers and internal hyphens.",
+      )
+      .transform((value) => value.toUpperCase())
+      .optional(),
+    nextInvoiceNumber: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(2_000_000_000)
+      .optional(),
+    numberPadding: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(12)
+      .optional(),
+    defaultPaymentTermsDays: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(3650)
+      .optional(),
+    defaultNotes: optionalTextSchema(5000).optional(),
+    defaultTerms: optionalTextSchema(5000).optional(),
+  })
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one invoice setting must be provided.",
+  );
+
+export type UpdateInvoiceSettingsInput = z.infer<
+  typeof updateInvoiceSettingsSchema
+>;
+
+export const invoiceIdParamSchema = z.object({
+  invoiceId: z.string().uuid("Invalid invoice ID."),
+});
+
+export type InvoiceIdParam = z.infer<typeof invoiceIdParamSchema>;
+
+export const invoiceListSortBySchema = z.enum([
+  "createdAt",
+  "updatedAt",
+  "dueDate",
+  "total",
+  "invoiceNumber",
+]);
+export type InvoiceListSortBy = z.infer<
+  typeof invoiceListSortBySchema
+>;
+
+export const invoiceListQuerySchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: invoiceStatusSchema.optional(),
+  clientId: z.string().uuid("Invalid client ID.").optional(),
+  projectId: z.string().uuid("Invalid project ID.").optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sortBy: invoiceListSortBySchema.default("createdAt"),
+  sortOrder: sortOrderSchema.default("desc"),
+});
+
+export type InvoiceListQuery = z.infer<typeof invoiceListQuerySchema>;
+
+export type InvoiceSettingsDto = {
+  organizationId: string;
+  businessName: string;
+  billingEmail: string | null;
+  billingPhone: string | null;
+  billingAddress: string | null;
+  taxId: string | null;
+  defaultCurrency: string;
+  invoicePrefix: string;
+  nextInvoiceNumber: number;
+  numberPadding: number;
+  defaultPaymentTermsDays: number;
+  defaultNotes: string | null;
+  defaultTerms: string | null;
+};
+
+export type InvoiceLineItemDto = {
+  id: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  discountPercent: string;
+  taxPercent: string;
+  subtotal: string;
+  discountAmount: string;
+  taxAmount: string;
+  total: string;
+  position: number;
+};
+
+export type InvoiceDto = {
+  id: string;
+  organizationId: string;
+  clientId: string;
+  projectId: string | null;
+  contactId: string | null;
+  status: InvoiceStatus;
+  sequenceNumber: number | null;
+  invoiceNumber: string | null;
+  currency: string;
+  issueDate: string | null;
+  dueDate: string | null;
+
+  sellerName: string;
+  sellerEmail: string | null;
+  sellerPhone: string | null;
+  sellerAddress: string | null;
+  sellerTaxId: string | null;
+
+  clientName: string;
+  clientEmail: string | null;
+  clientPhone: string | null;
+  clientAddress: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+
+  subtotal: string;
+  discountTotal: string;
+  taxTotal: string;
+  total: string;
+  amountPaid: string;
+  balanceDue: string;
+
+  notes: string | null;
+  terms: string | null;
+  finalizedAt: string | null;
+  sentAt: string | null;
+  voidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  client: {
+    id: string;
+    name: string;
+  };
+  project: {
+    id: string;
+    name: string;
+  } | null;
+  contact: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+  } | null;
+  lineItems: InvoiceLineItemDto[];
+};
+
+export type InvoiceListItemDto = Omit<
+  InvoiceDto,
+  "lineItems" | "contact"
+> & {
+  lineItemCount: number;
+};
+
+export type InvoiceListResponse = {
+  items: InvoiceListItemDto[];
+  pagination: PaginationMeta;
 };

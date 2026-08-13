@@ -105,6 +105,23 @@ async function proxyRequest(
     );
   }
 
+  for (const headerName of [
+    "content-disposition",
+    "cache-control",
+  ]) {
+    const value =
+      upstream.headers.get(
+        headerName,
+      );
+
+    if (value) {
+      responseHeaders.set(
+        headerName,
+        value,
+      );
+    }
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
     headers: responseHeaders,

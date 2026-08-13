@@ -86,6 +86,10 @@ model Organization {
 
   notificationDeliveries NotificationDelivery[]
 
+  invoiceSettings  OrganizationInvoiceSettings?
+  invoices         Invoice[]
+  invoiceLineItems InvoiceLineItem[]
+
   @@index([name])
 }
 
@@ -156,6 +160,8 @@ model Client {
   members  OrganizationMember[]
   contacts ClientContact[]
 
+  invoices Invoice[]
+
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, name])
@@ -179,6 +185,8 @@ model ClientContact {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  invoices Invoice[]
 
   @@index([organizationId])
   @@index([clientId])
@@ -210,6 +218,8 @@ model Project {
   files          FileAsset[]
   comments       Comment[]
   activityEvents ActivityEvent[]
+
+  invoices Invoice[]
 
   @@index([organizationId])
   @@index([organizationId, status])
@@ -417,6 +427,119 @@ model ActivityEvent {
   @@index([type, createdAt])
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+model OrganizationInvoiceSettings {
+  id                      String   @id @default(uuid()) @db.Uuid
+  organizationId          String   @unique @db.Uuid
+  businessName            String?
+  billingEmail            String?
+  billingPhone            String?
+  billingAddress          String?  @db.Text
+  taxId                   String?
+  defaultCurrency         String   @default("USD") @db.VarChar(3)
+  invoicePrefix           String   @default("INV")
+  nextInvoiceNumber       Int      @default(1)
+  numberPadding           Int      @default(5)
+  defaultPaymentTermsDays Int      @default(30)
+  defaultNotes            String?  @db.Text
+  defaultTerms            String?  @db.Text
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([defaultCurrency])
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  clientId       String        @db.Uuid
+  projectId      String?       @db.Uuid
+  contactId      String?       @db.Uuid
+  status         InvoiceStatus @default(DRAFT)
+  sequenceNumber Int?
+  invoiceNumber  String?
+  currency       String        @db.VarChar(3)
+  issueDate      DateTime?
+  dueDate        DateTime?
+
+  sellerName    String
+  sellerEmail   String?
+  sellerPhone   String?
+  sellerAddress String? @db.Text
+  sellerTaxId   String?
+
+  clientName    String
+  clientEmail   String?
+  clientPhone   String?
+  clientAddress String? @db.Text
+  contactName   String?
+  contactEmail  String?
+
+  subtotal      Decimal @default(0) @db.Decimal(19, 4)
+  discountTotal Decimal @default(0) @db.Decimal(19, 4)
+  taxTotal      Decimal @default(0) @db.Decimal(19, 4)
+  total         Decimal @default(0) @db.Decimal(19, 4)
+  amountPaid    Decimal @default(0) @db.Decimal(19, 4)
+  balanceDue    Decimal @default(0) @db.Decimal(19, 4)
+
+  notes       String?   @db.Text
+  terms       String?   @db.Text
+  finalizedAt DateTime?
+  sentAt      DateTime?
+  voidedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client        Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  project       Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contact       ClientContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  lineItems     InvoiceLineItem[]
+  notifications Notification[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@unique([organizationId, sequenceNumber])
+  @@index([organizationId, status, createdAt])
+  @@index([clientId, createdAt])
+  @@index([projectId])
+  @@index([contactId])
+  @@index([dueDate])
+}
+
+model InvoiceLineItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  invoiceId       String   @db.Uuid
+  description     String
+  quantity        Decimal  @db.Decimal(12, 4)
+  unitPrice       Decimal  @db.Decimal(19, 4)
+  discountPercent Decimal  @default(0) @db.Decimal(7, 4)
+  taxPercent      Decimal  @default(0) @db.Decimal(7, 4)
+  subtotal        Decimal  @default(0) @db.Decimal(19, 4)
+  discountAmount  Decimal  @default(0) @db.Decimal(19, 4)
+  taxAmount       Decimal  @default(0) @db.Decimal(19, 4)
+  total           Decimal  @default(0) @db.Decimal(19, 4)
+  position        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, invoiceId])
+  @@index([invoiceId, position])
+}
+
 enum NotificationCategory {
   TASKS
   COMMENTS
@@ -448,6 +571,7 @@ model Notification {
   taskId         String?              @db.Uuid
   commentId      String?              @db.Uuid
   fileId         String?              @db.Uuid
+  invoiceId      String?              @db.Uuid
   dedupeKey      String?
   readAt         DateTime?
   metadata       Json?
@@ -460,6 +584,7 @@ model Notification {
   task         Task?                  @relation(fields: [taskId], references: [id], onDelete: SetNull)
   comment      Comment?               @relation(fields: [commentId], references: [id], onDelete: SetNull)
   file         FileAsset?             @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  invoice      Invoice?               @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   deliveries   NotificationDelivery[]
 
   @@unique([organizationId, recipientId, dedupeKey])
@@ -470,6 +595,7 @@ model Notification {
   @@index([taskId])
   @@index([commentId])
   @@index([fileId])
+  @@index([invoiceId])
 }
 
 model NotificationPreference {

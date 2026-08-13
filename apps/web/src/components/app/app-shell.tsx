@@ -109,6 +109,12 @@ export function AppShell({
               >
                 Projects
               </NavigationLink>
+              <NavigationLink
+                href="/app/invoices"
+                active={pathname.startsWith("/app/invoices")}
+              >
+                Invoices
+              </NavigationLink>
             </nav>
           </div>
 
