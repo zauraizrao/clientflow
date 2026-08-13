@@ -18,6 +18,7 @@ import {
 } from "../models/repositories/file.repository.js";
 import { AppError } from "../utils/app-error.js";
 import { activityService } from "./activity.service.js";
+import { notificationService } from "./notification.service.js";
 import {
   canModerateProject,
   getCollaborationProject,
@@ -376,6 +377,45 @@ export const fileService = {
         sizeBytes: ready.sizeBytes,
       },
     });
+
+    if (!ready.commentId) {
+      const includeClientMembers =
+        ready.visibility === "CLIENT";
+
+      const audience = ready.taskId
+        ? await notificationService.taskAudience(
+            actor.organizationId,
+            projectId,
+            ready.taskId,
+            includeClientMembers,
+          )
+        : await notificationService.projectAudience(
+            actor.organizationId,
+            projectId,
+            includeClientMembers,
+          );
+
+      await notificationService.publishBestEffort({
+        organizationId: actor.organizationId,
+        actorId: actor.membershipId,
+        recipientIds: audience,
+        category: "FILES",
+        type: "file.shared",
+        title: "New file shared",
+        body: `"${ready.originalName}" was shared.`,
+        link: ready.taskId
+          ? `/app/projects/${projectId}?task=${ready.taskId}`
+          : `/app/projects/${projectId}?view=files&file=${ready.id}`,
+        projectId,
+        taskId: ready.taskId,
+        fileId: ready.id,
+        dedupeKey: `file.shared:${ready.id}`,
+        metadata: {
+          fileName: ready.originalName,
+          visibility: ready.visibility,
+        },
+      });
+    }
 
     return toFileDto(ready);
   },

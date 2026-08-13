@@ -118,6 +118,7 @@ export const commentRepository = {
       select: {
         id: true,
         taskId: true,
+        authorId: true,
         visibility: true,
       },
     });

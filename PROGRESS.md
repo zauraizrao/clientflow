@@ -86,13 +86,22 @@
 - [ ] Comments
 - [ ] Activity feed
 
-## Module 6 â€” Notifications
+## Module 6 — Notifications
 
-- [ ] Resend
-- [ ] Assignment email
-- [ ] Due-date email
-- [ ] Status-change email
-- [ ] BullMQ queue
+- [x] In-app notification inbox
+- [x] Unread count, mark-one-read and mark-all-read
+- [x] Notification category preferences
+- [x] Task assignment/update/workflow notifications
+- [x] Project membership notifications
+- [x] Comment/reply notifications
+- [x] File-share notifications
+- [x] Tenant-safe recipient filtering and self-notification suppression
+- [x] Resend transactional email integration
+- [x] Resend sandbox delivery without a custom domain
+- [x] Email delivery state, attempts, provider message ID and idempotency
+- [x] Notification bell, inbox, filters, pagination and deep links
+- [ ] Scheduled due-date reminder jobs — deferred to Module 9 Background Jobs
+- [ ] BullMQ/Redis delivery queue and retry workers — Module 9 Background Jobs
 
 ## Module 7 â€” Invoicing
 
@@ -204,4 +213,50 @@ Verified:
 
 Next:
 - Module 6 - Notifications.
+
+## Module 6 - Notifications [COMPLETE]
+Completed: 2026-08-13
+
+### Delivered
+- Multi-tenant notification foundation with Notification, NotificationPreference and NotificationDelivery models.
+- OrganizationMember-scoped recipients so notifications remain isolated per workspace.
+- In-app notification inbox with read/unread state, unread counter, pagination and category filters.
+- Notification preferences for TASKS, COMMENTS, FILES, PROJECTS, BILLING and SYSTEM.
+- Project-member, task-assignment, task-update, task-move/completed/reopened, comment/reply and file-share event hooks.
+- CLIENT visibility-aware collaboration notifications and cross-organization recipient filtering.
+- Self-notification suppression and database-level event deduplication.
+- Concurrent idempotency hardening for notification creation.
+- Header notification bell with 30-second unread polling and compact recent-notification panel.
+- Full /app/notifications workspace with Inbox and Preferences views.
+- Safe project/task notification deep links.
+- Resend email provider adapter using server-side environment configuration.
+- Email delivery lifecycle: PENDING -> PROCESSING -> SENT / FAILED.
+- Provider message ID, attempt count and failure-state persistence.
+- Resend Idempotency-Key protection for provider retries.
+- Explicit email modes: disabled, sandbox and live.
+- Sandbox mode reroutes development email to the approved Resend account recipient.
+- Live mode is intentionally blocked from using the resend.dev test sender and is ready for a verified custom domain later.
+
+### Verification
+- M6.1 Prisma format, validation and client generation passed.
+- Migration 20260813140000_notifications_foundation deployed successfully.
+- Database migration status reported up to date.
+- M6.2 monorepo TypeScript typecheck passed.
+- Notification repository/service API smoke passed.
+- M6.3 event integration smoke passed, including tenant isolation, visibility, preference suppression and concurrent deduplication.
+- M6.4 frontend TypeScript typecheck passed.
+- M6.4 production build passed.
+- Browser verification passed for notification bell, compact inbox, full inbox, preferences, unread state and project/task deep links.
+- M6.5 TypeScript typecheck passed.
+- Resend sandbox smoke passed and the test email was received.
+- Resend provider message ID persistence and duplicate-send prevention verified.
+- Final production build passed.
+
+### Deferred by architecture
+- Scheduled due-date reminders require a scheduler/worker and remain part of Module 9 Background Jobs.
+- BullMQ/Redis queueing, retries and worker processing remain part of Module 9 Background Jobs.
+- Production email to real customer recipients requires a verified custom sending domain; sandbox mode is the verified development path until then.
+
+### Next
+Module 7 - Invoicing
 

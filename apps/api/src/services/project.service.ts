@@ -26,6 +26,7 @@ import {
 } from "../models/repositories/project.repository.js";
 import { AppError } from "../utils/app-error.js";
 import { activityService } from "./activity.service.js";
+import { notificationService } from "./notification.service.js";
 
 export type ProjectActor = {
   userId: string;
@@ -523,6 +524,23 @@ export const projectService = {
       },
     });
 
+    await notificationService.publishBestEffort({
+      organizationId: actor.organizationId,
+      actorId: actor.membershipId,
+      recipientIds: team.memberIds,
+      category: "PROJECTS",
+      type: "project.member_added",
+      title: "Added to project",
+      body: `You were added to "${project.name}".`,
+      link: `/app/projects/${project.id}`,
+      projectId: project.id,
+      dedupeKey:
+        `project.member_added:${project.id}:${project.createdAt.toISOString()}`,
+      metadata: {
+        projectName: project.name,
+      },
+    });
+
     return toProjectDetailDto(project);
   },
 
@@ -649,6 +667,10 @@ export const projectService = {
       (memberId) => !nextIds.has(memberId),
     );
 
+    const addedIds = [...nextIds].filter(
+      (memberId) => !existingIds.has(memberId),
+    );
+
     const assignedTaskCount =
       await projectRepository.countTaskAssignmentsForMembers(
         actor.organizationId,
@@ -671,6 +693,49 @@ export const projectService = {
         input.memberIds,
         leadMemberId,
       );
+
+    if (addedIds.length > 0) {
+      const project =
+        await projectRepository.findProjectById(
+          actor.organizationId,
+          projectId,
+        );
+
+      const addedVersion = members
+        .filter((member) =>
+          addedIds.includes(
+            member.organizationMemberId,
+          ),
+        )
+        .map((member) =>
+          member.createdAt.toISOString(),
+        )
+        .sort()
+        .join(":");
+
+      await notificationService.publishBestEffort({
+        organizationId: actor.organizationId,
+        actorId: actor.membershipId,
+        recipientIds: addedIds,
+        category: "PROJECTS",
+        type: "project.member_added",
+        title: "Added to project",
+        body: project
+          ? `You were added to "${project.name}".`
+          : "You were added to a project.",
+        link: `/app/projects/${projectId}`,
+        projectId,
+        dedupeKey:
+          `project.member_added:${projectId}:${addedVersion}`,
+        ...(project
+          ? {
+              metadata: {
+                projectName: project.name,
+              },
+            }
+          : {}),
+      });
+    }
 
     return members.map(toMemberDto);
   },

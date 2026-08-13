@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "./notification-bell";
 import { Separator } from "@/components/ui/separator";
 
 type ApiEnvelope<T> = {
@@ -112,6 +113,7 @@ export function AppShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
+            <NotificationBell />
             <div className="hidden text-right sm:block">
               <div className="max-w-[180px] truncate text-xs font-medium">
                 {name ?? email}

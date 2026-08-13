@@ -14,6 +14,7 @@ import {
 import type { FileAssetRow } from "../models/repositories/file.repository.js";
 import { AppError } from "../utils/app-error.js";
 import { activityService } from "./activity.service.js";
+import { notificationService } from "./notification.service.js";
 import {
   canModerateProject,
   getCollaborationProject,
@@ -152,6 +153,7 @@ export const commentService = {
       input.visibility,
     );
     const parentCommentId = input.parentCommentId ?? null;
+    let parentAuthorId: string | null = null;
 
     if (parentCommentId) {
       const parent = await commentRepository.findParent(
@@ -171,6 +173,7 @@ export const commentService = {
 
       taskId = parent.taskId;
       visibility = parent.visibility;
+      parentAuthorId = parent.authorId;
     } else if (taskId) {
       const task = await commentRepository.findTaskTarget(
         actor.organizationId,
@@ -221,6 +224,52 @@ export const commentService = {
       visibility: comment.visibility,
       metadata: {
         preview: comment.body.slice(0, 160),
+      },
+    });
+
+    const includeClientMembers =
+      comment.visibility === "CLIENT";
+
+    const audience = comment.taskId
+      ? await notificationService.taskAudience(
+          actor.organizationId,
+          projectId,
+          comment.taskId,
+          includeClientMembers,
+        )
+      : await notificationService.projectAudience(
+          actor.organizationId,
+          projectId,
+          includeClientMembers,
+        );
+
+    if (parentAuthorId) {
+      audience.push(parentAuthorId);
+    }
+
+    await notificationService.publishBestEffort({
+      organizationId: actor.organizationId,
+      actorId: actor.membershipId,
+      recipientIds: audience,
+      category: "COMMENTS",
+      type: parentCommentId
+        ? "comment.replied"
+        : "comment.created",
+      title: parentCommentId
+        ? "New comment reply"
+        : "New project comment",
+      body: comment.body.slice(0, 240),
+      link: comment.taskId
+        ? `/app/projects/${projectId}?task=${comment.taskId}&comment=${comment.id}`
+        : `/app/projects/${projectId}?view=comments&comment=${comment.id}`,
+      projectId,
+      taskId: comment.taskId,
+      commentId: comment.id,
+      dedupeKey:
+        `comment.created:${comment.id}`,
+      metadata: {
+        preview: comment.body.slice(0, 160),
+        visibility: comment.visibility,
       },
     });
 

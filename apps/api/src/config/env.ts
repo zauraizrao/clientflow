@@ -34,6 +34,32 @@ const envSchema = z.object({
     .string()
     .min(1)
     .default("clientflow-files"),
+
+
+  // Transactional notification email.
+  // "sandbox" reroutes every recipient to RESEND_SANDBOX_RECIPIENT.
+  // "live" requires a verified custom Resend domain.
+  EMAIL_DELIVERY_MODE: z
+    .enum(["disabled", "sandbox", "live"])
+    .default("disabled"),
+  RESEND_API_KEY: z
+    .string()
+    .min(1)
+    .optional(),
+  RESEND_FROM: z
+    .string()
+    .min(1)
+    .default(
+      "ClientFlow <onboarding@resend.dev>",
+    ),
+  RESEND_SANDBOX_RECIPIENT: z
+    .string()
+    .email()
+    .optional(),
+  APP_BASE_URL: z
+    .string()
+    .url()
+    .default("http://localhost:3000"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

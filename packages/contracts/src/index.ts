@@ -1286,3 +1286,130 @@ export type ActivityListResponse = {
   items: ActivityEventDto[];
   pagination: PaginationMeta;
 };
+
+/* =========================================================
+   MODULE 6 - NOTIFICATIONS
+   ========================================================= */
+
+export const notificationCategorySchema = z.enum([
+  "TASKS",
+  "COMMENTS",
+  "FILES",
+  "PROJECTS",
+  "BILLING",
+  "SYSTEM",
+]);
+
+export type NotificationCategory = z.infer<
+  typeof notificationCategorySchema
+>;
+
+export const notificationReadStateSchema = z.enum([
+  "ALL",
+  "UNREAD",
+  "READ",
+]);
+
+export type NotificationReadState = z.infer<
+  typeof notificationReadStateSchema
+>;
+
+export const notificationListQuerySchema = z.object({
+  category: notificationCategorySchema.optional(),
+  state: notificationReadStateSchema.default("ALL"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20),
+});
+
+export type NotificationListQuery = z.infer<
+  typeof notificationListQuerySchema
+>;
+
+export const notificationIdParamSchema = z.object({
+  notificationId: z
+    .string()
+    .uuid("Invalid notification ID."),
+});
+
+export type NotificationIdParam = z.infer<
+  typeof notificationIdParamSchema
+>;
+
+export const notificationPreferenceInputSchema = z.object({
+  category: notificationCategorySchema,
+  inAppEnabled: z.boolean(),
+  emailEnabled: z.boolean(),
+});
+
+export const updateNotificationPreferencesSchema = z
+  .object({
+    preferences: z
+      .array(notificationPreferenceInputSchema)
+      .min(1)
+      .max(6),
+  })
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+
+    value.preferences.forEach((preference, index) => {
+      if (seen.has(preference.category)) {
+        context.addIssue({
+          code: "custom",
+          path: ["preferences", index, "category"],
+          message:
+            "Each notification category may only appear once.",
+        });
+      }
+
+      seen.add(preference.category);
+    });
+  });
+
+export type UpdateNotificationPreferencesInput = z.infer<
+  typeof updateNotificationPreferencesSchema
+>;
+
+export type NotificationActorDto = {
+  organizationMemberId: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+export type NotificationDto = {
+  id: string;
+  organizationId: string;
+  recipientId: string;
+  actorId: string | null;
+  category: NotificationCategory;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  projectId: string | null;
+  taskId: string | null;
+  commentId: string | null;
+  fileId: string | null;
+  readAt: string | null;
+  isRead: boolean;
+  metadata: unknown;
+  actor: NotificationActorDto | null;
+  createdAt: string;
+};
+
+export type NotificationListResponse = {
+  items: NotificationDto[];
+  pagination: PaginationMeta;
+};
+
+export type NotificationPreferenceDto = {
+  category: NotificationCategory;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+};

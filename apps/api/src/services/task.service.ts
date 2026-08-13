@@ -26,6 +26,7 @@ import {
 } from "./project.service.js";
 import { AppError } from "../utils/app-error.js";
 import { activityService } from "./activity.service.js";
+import { notificationService } from "./notification.service.js";
 
 type TaskColumnRecord = {
   id: string;
@@ -453,6 +454,29 @@ export const taskService = {
       },
     });
 
+    await notificationService.publishBestEffort({
+      organizationId: actor.organizationId,
+      actorId: actor.membershipId,
+      recipientIds: task.assignees.map(
+        (assignment) =>
+          assignment.organizationMemberId,
+      ),
+      category: "TASKS",
+      type: "task.assigned",
+      title: "New task assignment",
+      body: `You were assigned to "${task.title}".`,
+      link:
+        `/app/projects/${projectId}?task=${task.id}`,
+      projectId,
+      taskId: task.id,
+      dedupeKey:
+        `task.assigned:${task.id}:${task.createdAt.toISOString()}`,
+      metadata: {
+        taskTitle: task.title,
+        priority: task.priority,
+      },
+    });
+
     return toTaskDetailDto(task);
   },
 
@@ -498,6 +522,13 @@ export const taskService = {
       );
     }
 
+    const previousAssigneeIds = new Set(
+      existing.assignees.map(
+        (assignment) =>
+          assignment.organizationMemberId,
+      ),
+    );
+
     const task = await taskRepository.updateTask(
       actor.organizationId,
       projectId,
@@ -521,6 +552,82 @@ export const taskService = {
         priority: task.priority,
       },
     });
+
+    const currentAssigneeIds = task.assignees.map(
+      (assignment) =>
+        assignment.organizationMemberId,
+    );
+
+    const newlyAssignedIds =
+      currentAssigneeIds.filter(
+        (memberId) =>
+          !previousAssigneeIds.has(memberId),
+      );
+
+    if (newlyAssignedIds.length > 0) {
+      await notificationService.publishBestEffort({
+        organizationId: actor.organizationId,
+        actorId: actor.membershipId,
+        recipientIds: newlyAssignedIds,
+        category: "TASKS",
+        type: "task.assigned",
+        title: "New task assignment",
+        body: `You were assigned to "${task.title}".`,
+        link:
+          `/app/projects/${projectId}?task=${task.id}`,
+        projectId,
+        taskId: task.id,
+        dedupeKey:
+          `task.assigned:${task.id}:${task.updatedAt.toISOString()}`,
+        metadata: {
+          taskTitle: task.title,
+          priority: task.priority,
+        },
+      });
+    }
+
+    const detailsChanged =
+      input.title !== undefined ||
+      input.description !== undefined ||
+      input.priority !== undefined ||
+      input.startDate !== undefined ||
+      input.dueDate !== undefined;
+
+    if (detailsChanged) {
+      const taskUpdateAudience =
+        await notificationService.taskAudience(
+          actor.organizationId,
+          projectId,
+          task.id,
+          false,
+        );
+      const newlyAssignedSet =
+        new Set(newlyAssignedIds);
+
+      await notificationService.publishBestEffort({
+        organizationId: actor.organizationId,
+        actorId: actor.membershipId,
+        recipientIds:
+          taskUpdateAudience.filter(
+            (memberId) =>
+              !newlyAssignedSet.has(memberId),
+          ),
+        category: "TASKS",
+        type: "task.updated",
+        title: "Task updated",
+        body: `"${task.title}" was updated.`,
+        link:
+          `/app/projects/${projectId}?task=${task.id}`,
+        projectId,
+        taskId: task.id,
+        dedupeKey:
+          `task.updated:${task.id}:${task.updatedAt.toISOString()}`,
+        metadata: {
+          taskTitle: task.title,
+          priority: task.priority,
+        },
+      });
+    }
 
     return toTaskDetailDto(task);
   },
@@ -586,6 +693,49 @@ export const taskService = {
       visibility: "INTERNAL",
       metadata: {
         title: task.title,
+        fromColumnId: existing.projectColumnId,
+        toColumnId: task.projectColumnId,
+      },
+    });
+
+    const notificationType =
+      activityType === "task.completed"
+        ? "task.completed"
+        : activityType === "task.reopened"
+          ? "task.reopened"
+          : "task.moved";
+
+    const notificationTitle =
+      activityType === "task.completed"
+        ? "Task completed"
+        : activityType === "task.reopened"
+          ? "Task reopened"
+          : "Task moved";
+
+    const taskMoveAudience =
+      await notificationService.taskAudience(
+        actor.organizationId,
+        projectId,
+        task.id,
+        false,
+      );
+
+    await notificationService.publishBestEffort({
+      organizationId: actor.organizationId,
+      actorId: actor.membershipId,
+      recipientIds: taskMoveAudience,
+      category: "TASKS",
+      type: notificationType,
+      title: notificationTitle,
+      body: `"${task.title}" changed workflow status.`,
+      link:
+        `/app/projects/${projectId}?task=${task.id}`,
+      projectId,
+      taskId: task.id,
+      dedupeKey:
+        `${notificationType}:${task.id}:${task.updatedAt.toISOString()}`,
+      metadata: {
+        taskTitle: task.title,
         fromColumnId: existing.projectColumnId,
         toColumnId: task.projectColumnId,
       },

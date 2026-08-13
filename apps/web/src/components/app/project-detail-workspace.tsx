@@ -9,6 +9,7 @@ import type {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ export function ProjectDetailWorkspace({
   projectId: string;
 }) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
 
   const organizationId =
@@ -93,6 +95,35 @@ export function ProjectDetailWorkspace({
     setPage(1);
     setWorkspaceView("work");
   }, [organizationId]);
+
+  useEffect(() => {
+    const requestedView =
+      searchParams.get("view");
+
+    if (
+      requestedView === "work" ||
+      requestedView === "files" ||
+      requestedView === "comments" ||
+      requestedView === "activity"
+    ) {
+      setWorkspaceView(
+        requestedView,
+      );
+    }
+
+    const linkedTaskId =
+      searchParams.get("task");
+
+    if (linkedTaskId) {
+      setWorkspaceView("work");
+      setActiveTaskId(linkedTaskId);
+      setNewTaskColumnId(null);
+      setTaskOpen(true);
+    }
+  }, [
+    organizationId,
+    searchParams,
+  ]);
 
   const project = useQuery({
     queryKey: [

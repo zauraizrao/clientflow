@@ -67,18 +67,24 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members            OrganizationMember[]
-  clients            Client[]
-  clientContacts     ClientContact[]
-  projects           Project[]
-  projectMembers     ProjectMember[]
-  projectColumns     ProjectColumn[]
-  tasks              Task[]
-  taskAssignees      TaskAssignee[]
+  members        OrganizationMember[]
+  clients        Client[]
+  clientContacts ClientContact[]
+  projects       Project[]
+  projectMembers ProjectMember[]
+  projectColumns ProjectColumn[]
+  tasks          Task[]
+  taskAssignees  TaskAssignee[]
 
   files          FileAsset[]
   comments       Comment[]
   activityEvents ActivityEvent[]
+
+  notifications Notification[]
+
+  notificationPreferences NotificationPreference[]
+
+  notificationDeliveries NotificationDelivery[]
 
   @@index([name])
 }
@@ -114,15 +120,20 @@ model OrganizationMember {
 
   projectMemberships ProjectMember[]
   taskAssignments    TaskAssignee[]
-  createdTasks       Task[]        @relation("TaskCreator")
+  createdTasks       Task[]          @relation("TaskCreator")
+
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+
+  notificationsActed Notification[] @relation("NotificationActor")
+
+  notificationPreferences NotificationPreference[]
+  uploadedFiles           FileAsset[]              @relation("FileUploader")
+  comments                Comment[]                @relation("CommentAuthor")
+  activityEvents          ActivityEvent[]          @relation("ActivityActor")
 
   @@unique([organizationId, userId])
   @@index([organizationId, role])
   @@index([userId])
-  uploadedFiles   FileAsset[]     @relation("FileUploader")
-  comments        Comment[]       @relation("CommentAuthor")
-  activityEvents  ActivityEvent[] @relation("ActivityActor")
-
   @@index([clientId])
 }
 
@@ -151,9 +162,9 @@ model Client {
 }
 
 model ClientContact {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
-  clientId       String   @db.Uuid
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  clientId       String @db.Uuid
 
   firstName String
   lastName  String?
@@ -195,13 +206,14 @@ model Project {
   columns ProjectColumn[]
   tasks   Task[]
 
-  @@index([organizationId])
-  @@index([organizationId, status])
-  @@index([clientId])
+  notifications  Notification[]
   files          FileAsset[]
   comments       Comment[]
   activityEvents ActivityEvent[]
 
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([clientId])
   @@index([dueDate])
 }
 
@@ -271,6 +283,11 @@ model Task {
   createdBy     OrganizationMember? @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   assignees     TaskAssignee[]
 
+  notifications  Notification[]
+  files          FileAsset[]
+  comments       Comment[]
+  activityEvents ActivityEvent[]
+
   @@index([organizationId])
   @@index([projectId])
   @@index([projectColumnId])
@@ -279,10 +296,6 @@ model Task {
   @@index([organizationId, priority])
   @@index([projectId, projectColumnId, position])
   @@index([dueDate])
-  files          FileAsset[]
-  comments       Comment[]
-  activityEvents ActivityEvent[]
-
   @@index([completedAt])
 }
 
@@ -301,33 +314,36 @@ model TaskAssignee {
   @@index([organizationId, taskId])
   @@index([organizationId, organizationMemberId])
 }
+
 model FileAsset {
-  id             String                   @id @default(uuid()) @db.Uuid
-  organizationId String                   @db.Uuid
-  projectId      String                   @db.Uuid
-  taskId         String?                  @db.Uuid
-  commentId      String?                  @db.Uuid
-  uploadedById   String?                  @db.Uuid
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  projectId      String                  @db.Uuid
+  taskId         String?                 @db.Uuid
+  commentId      String?                 @db.Uuid
+  uploadedById   String?                 @db.Uuid
   originalName   String
-  storageBucket  String                   @default("clientflow-files")
-  storagePath    String                   @unique
+  storageBucket  String                  @default("clientflow-files")
+  storagePath    String                  @unique
   mimeType       String
   extension      String?
   sizeBytes      Int
-  visibility     CollaborationVisibility  @default(INTERNAL)
-  status         FileAssetStatus          @default(PENDING)
+  visibility     CollaborationVisibility @default(INTERNAL)
+  status         FileAssetStatus         @default(PENDING)
   failureReason  String?
   completedAt    DateTime?
   deletedAt      DateTime?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task         Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  comment      Comment?            @relation(fields: [commentId], references: [id], onDelete: SetNull)
-  uploadedBy   OrganizationMember? @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task           Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  comment        Comment?            @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  uploadedBy     OrganizationMember? @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   activityEvents ActivityEvent[]
+
+  notifications Notification[]
 
   @@index([organizationId, projectId, createdAt])
   @@index([projectId, taskId])
@@ -338,28 +354,30 @@ model FileAsset {
 }
 
 model Comment {
-  id              String                   @id @default(uuid()) @db.Uuid
-  organizationId  String                   @db.Uuid
-  projectId       String                   @db.Uuid
-  taskId          String?                  @db.Uuid
-  authorId        String?                  @db.Uuid
-  parentCommentId String?                  @db.Uuid
-  body            String                   @db.Text
-  visibility      CollaborationVisibility  @default(INTERNAL)
+  id              String                  @id @default(uuid()) @db.Uuid
+  organizationId  String                  @db.Uuid
+  projectId       String                  @db.Uuid
+  taskId          String?                 @db.Uuid
+  authorId        String?                 @db.Uuid
+  parentCommentId String?                 @db.Uuid
+  body            String                  @db.Text
+  visibility      CollaborationVisibility @default(INTERNAL)
   authorName      String?
   editedAt        DateTime?
   deletedAt       DateTime?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  task         Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  author       OrganizationMember? @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  parentComment Comment?           @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: SetNull)
-  replies       Comment[]          @relation("CommentReplies")
-  files         FileAsset[]
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task           Task?               @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  author         OrganizationMember? @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parentComment  Comment?            @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: SetNull)
+  replies        Comment[]           @relation("CommentReplies")
+  files          FileAsset[]
   activityEvents ActivityEvent[]
+
+  notifications Notification[]
 
   @@index([organizationId, projectId, createdAt])
   @@index([projectId, taskId, createdAt])
@@ -370,18 +388,18 @@ model Comment {
 }
 
 model ActivityEvent {
-  id               String                   @id @default(uuid()) @db.Uuid
-  organizationId   String                   @db.Uuid
-  projectId        String                   @db.Uuid
-  taskId           String?                  @db.Uuid
-  commentId        String?                  @db.Uuid
-  fileId           String?                  @db.Uuid
-  actorId          String?                  @db.Uuid
-  type             String
-  visibility       CollaborationVisibility  @default(INTERNAL)
-  actorName        String?
-  metadata         Json?
-  createdAt        DateTime                 @default(now())
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  projectId      String                  @db.Uuid
+  taskId         String?                 @db.Uuid
+  commentId      String?                 @db.Uuid
+  fileId         String?                 @db.Uuid
+  actorId        String?                 @db.Uuid
+  type           String
+  visibility     CollaborationVisibility @default(INTERNAL)
+  actorName      String?
+  metadata       Json?
+  createdAt      DateTime                @default(now())
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -399,3 +417,98 @@ model ActivityEvent {
   @@index([type, createdAt])
 }
 
+enum NotificationCategory {
+  TASKS
+  COMMENTS
+  FILES
+  PROJECTS
+  BILLING
+  SYSTEM
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model Notification {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  recipientId    String               @db.Uuid
+  actorId        String?              @db.Uuid
+  category       NotificationCategory
+  type           String
+  title          String
+  body           String?              @db.Text
+  link           String?
+  projectId      String?              @db.Uuid
+  taskId         String?              @db.Uuid
+  commentId      String?              @db.Uuid
+  fileId         String?              @db.Uuid
+  dedupeKey      String?
+  readAt         DateTime?
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipient    OrganizationMember     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor        OrganizationMember?    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project      Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task         Task?                  @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  comment      Comment?               @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  file         FileAsset?             @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  deliveries   NotificationDelivery[]
+
+  @@unique([organizationId, recipientId, dedupeKey])
+  @@index([organizationId, recipientId, readAt, createdAt])
+  @@index([recipientId, readAt, createdAt])
+  @@index([organizationId, category, createdAt])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([commentId])
+  @@index([fileId])
+}
+
+model NotificationPreference {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  memberId       String               @db.Uuid
+  category       NotificationCategory
+  inAppEnabled   Boolean              @default(true)
+  emailEnabled   Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       OrganizationMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, category])
+  @@index([organizationId, memberId])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(uuid()) @db.Uuid
+  organizationId    String                     @db.Uuid
+  notificationId    String                     @db.Uuid
+  channel           String                     @default("EMAIL")
+  status            NotificationDeliveryStatus @default(PENDING)
+  attemptCount      Int                        @default(0)
+  scheduledAt       DateTime                   @default(now())
+  lastAttemptAt     DateTime?
+  sentAt            DateTime?
+  provider          String?
+  providerMessageId String?
+  lastError         String?                    @db.Text
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, channel])
+  @@index([organizationId, status, scheduledAt])
+  @@index([status, scheduledAt])
+}
