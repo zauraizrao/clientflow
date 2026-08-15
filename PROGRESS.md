@@ -105,18 +105,18 @@
 
 ## Module 7 â€” Invoicing
 
-- [ ] Invoice builder
-- [ ] Line items
-- [ ] Totals
-- [ ] Invoice numbering
-- [ ] PDF generation
+- [x] Invoice builder
+- [x] Line items
+- [x] Totals
+- [x] Invoice numbering
+- [x] PDF generation
 
 ## Module 8 â€” Stripe
 
-- [ ] Stripe test mode
-- [ ] Checkout
-- [ ] Webhooks
-- [ ] Payment status sync
+- [x] Stripe test mode
+- [x] Checkout
+- [x] Webhooks
+- [x] Payment status sync
 
 ## Module 9 â€” Background Jobs
 
@@ -259,4 +259,59 @@ Completed: 2026-08-13
 
 ### Next
 Module 7 - Invoicing
+
+## Module 7 - Invoicing [COMPLETE]
+Completed: 2026-08-13
+
+### Delivered
+- Multi-tenant invoicing foundation with invoice settings and persistent invoice numbering.
+- Invoice builder with line items, quantities, unit prices, tax/discount calculations and totals.
+- Draft, finalized/sent and void invoice lifecycle.
+- Historical invoice snapshots so finalized invoices remain stable.
+- Invoice list and detail workspaces with edit/finalize/void flows.
+- Billing notifications integrated with the existing notification system.
+- Server-rendered invoice PDF generation and authenticated download flow.
+- ADMIN / MANAGER / MEMBER / linked CLIENT invoice authorization and tenant isolation.
+
+### Verification
+- Prisma migration and schema validation passed.
+- Invoice backend smoke verification passed.
+- Billing notification smoke verification passed.
+- Invoice PDF smoke verification passed.
+- Frontend TypeScript validation passed.
+- Production build passed.
+- Browser workflow verified for invoice creation, finalization, detail view and PDF billing.
+
+### Next
+Module 8 - Stripe Payments
+
+## Module 8 - Stripe Payments [COMPLETE]
+Completed: 2026-08-15
+
+### Delivered
+- Stripe test/live/disabled runtime configuration with server-side secret handling.
+- Stripe-hosted Checkout Session creation for full and partial invoice payments.
+- Decimal-safe payment ledger with Stripe IDs and lifecycle timestamps.
+- One-active-checkout protection and idempotent Checkout creation.
+- Signed raw-body Stripe webhook endpoint mounted before JSON parsing.
+- Webhook idempotency and monotonic payment-state reconciliation.
+- Supported Checkout completed, async succeeded, async failed and expired events.
+- Exact amount/currency validation and invoice/payment locking during reconciliation.
+- Payment notifications integrated into ClientFlow billing notifications.
+- Invoice Payments UI with full-balance and partial-payment checkout.
+- Payment history, active-checkout resume and processing-state protection.
+- Webhook-authoritative success polling; the client never marks an invoice paid from the return URL alone.
+
+### Verification
+- Module 8 backend/config/webhook/payment-notification smoke checks passed.
+- Web TypeScript validation passed.
+- Next.js production build passed with the normal Turbopack build path.
+- Real Stripe sandbox Checkout opened successfully from ClientFlow.
+- Full-payment test reconciled to SUCCEEDED and invoice PAID.
+- Partial-payment test reconciled correctly with remaining balance.
+- Second payment against the remaining balance reconciled independently without double-crediting.
+- Final invoice balance reached zero and payment history showed both successful Stripe payments.
+
+### Next
+Module 9 - Background Jobs
 
