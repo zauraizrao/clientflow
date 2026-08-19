@@ -118,15 +118,16 @@
 - [x] Webhooks
 - [x] Payment status sync
 
-## Module 9 â€” Background Jobs
+## Module 9 — Background Jobs
 
-- [ ] Redis
-- [ ] BullMQ
-- [ ] PDF jobs
-- [ ] Email jobs
-- [ ] Webhook jobs
-- [ ] Retries
-- [ ] Failed jobs
+- [x] Upstash Redis connection foundation
+- [x] BullMQ queue and dedicated worker
+- [x] Durable retryable notification email jobs
+- [x] Email retry, backoff, recovery, and idempotency
+- [x] Scheduled invoice due-date reminders
+- [x] Daily 08:00 UTC BullMQ Job Scheduler
+- [x] Due-soon, due-today, and overdue notification flow
+- [x] Module 9 verification
 
 ## Module 10 â€” Client Portal
 
@@ -314,4 +315,47 @@ Completed: 2026-08-15
 
 ### Next
 Module 9 - Background Jobs
+
+## Module 9 - Background Jobs [COMPLETE]
+Completed: 2026-08-19
+
+### Delivered
+- Upstash Redis-backed BullMQ foundation with lazy API producer connection and a dedicated worker process.
+- Queue jobs for foundation health checks, durable notification email delivery, and invoice due-date scans.
+- Notification email delivery moved out of the request/webhook path and into BullMQ.
+- Six-attempt email retry policy with exponential backoff.
+- Persistent email delivery lifecycle with PENDING, PROCESSING, FAILED, SENT, and SKIPPED handling.
+- Deterministic email job IDs plus existing Resend idempotency to suppress duplicate delivery.
+- Recovery scan for durable PENDING/FAILED email deliveries and stale PROCESSING deliveries after worker interruption.
+- Daily invoice due-date Job Scheduler at 08:00 UTC.
+- Due-soon reminders for invoices 1-3 UTC date-days before due date.
+- Due-today reminders and overdue reminders.
+- Race-safe SENT/PARTIALLY_PAID -> OVERDUE transition.
+- Billing reminder audience limited to ADMIN, MANAGER, and the linked CLIENT memberships.
+- Stage-specific reminder dedupe keys so repeated scans do not create duplicate notifications.
+- Existing BILLING notification preferences remain authoritative.
+- Graceful API queue shutdown and worker shutdown/recovery behavior.
+
+### Scope Decisions
+- Existing invoice PDF generation remains outside the background queue for this module.
+- Stripe webhook reconciliation remains webhook-authoritative; Module 9 queues downstream notification email delivery rather than moving financial reconciliation into a background job.
+
+### Verification
+- BullMQ Job Scheduler TypeScript probe passed.
+- Real Upstash cron Job Scheduler runtime probe passed.
+- API TypeScript typecheck passed.
+- API production build passed and produced dist/worker.js.
+- M9.1 real Upstash queue foundation smoke passed.
+- M9.2 email failure -> BullMQ retry -> SENT smoke passed.
+- M9.2 recovery and already-SENT idempotency checks passed.
+- M9.3 scheduler persistence, due classification, OVERDUE transition, billing audience, skip rules, and repeat-scan idempotency smoke passed.
+- M8.5 payment notification regression passed.
+- Contracts and Web TypeScript typechecks passed.
+- M9.2/M9.3 smokes sent zero real Resend messages.
+- Private apps/api/.env verified ignored and untracked.
+- Tracked Module 9 secret scan passed.
+- Final git diff whitespace check passed.
+
+### Next
+Module 10 - Client Portal
 
