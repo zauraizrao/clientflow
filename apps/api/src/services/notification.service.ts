@@ -10,11 +10,13 @@ import type {
 import type { Prisma } from "../generated/prisma/client.js";
 import {
   notificationRepository,
-  type NotificationRecipientTarget,
   type NotificationRow,
 } from "../models/repositories/notification.repository.js";
 import { AppError } from "../utils/app-error.js";
 import type { ProjectActor } from "./project.service.js";
+import {
+  enqueueNotificationEmailBestEffort,
+} from "./notification-email-queue.service.js";
 import { resendEmailService } from "./resend-email.service.js";
 
 const categories: NotificationCategory[] = [
@@ -69,76 +71,6 @@ function toDto(
     createdAt:
       notification.createdAt.toISOString(),
   };
-}
-
-function errorMessage(
-  error: unknown,
-): string {
-  return error instanceof Error
-    ? error.message
-    : String(error);
-}
-
-async function deliverEmailBestEffort(
-  notification: NotificationRow,
-  recipient: NotificationRecipientTarget,
-): Promise<void> {
-  const emailDelivery =
-    notification.deliveries.find(
-      (delivery) =>
-        delivery.channel === "EMAIL",
-    );
-
-  if (
-    !emailDelivery ||
-    emailDelivery.status === "SENT"
-  ) {
-    return;
-  }
-
-  const claimed =
-    await notificationRepository.claimEmailDelivery(
-      notification.id,
-    );
-
-  if (!claimed) {
-    return;
-  }
-
-  try {
-    const result =
-      await resendEmailService.sendNotification({
-        notificationId:
-          notification.id,
-        category:
-          notification.category,
-        type: notification.type,
-        title: notification.title,
-        body: notification.body,
-        link: notification.link,
-        recipientEmail:
-          recipient.email,
-        recipientName:
-          recipient.name,
-      });
-
-    await notificationRepository.markEmailSent(
-      claimed.id,
-      result.providerMessageId,
-    );
-  } catch (error) {
-    const message = errorMessage(error);
-
-    await notificationRepository.markEmailFailed(
-      claimed.id,
-      message,
-    );
-
-    console.error(
-      `Notification email failed for ${notification.id}:`,
-      message,
-    );
-  }
 }
 
 export type PublishNotificationInput = {
@@ -388,10 +320,20 @@ export const notificationService = {
         inAppDelivered += 1;
       }
 
-      if (emailEnabled) {
-        await deliverEmailBestEffort(
-          notification,
-          recipient,
+      const emailDelivery =
+        notification.deliveries.find(
+          (delivery) =>
+            delivery.channel === "EMAIL",
+        );
+
+      if (
+        emailEnabled &&
+        emailDelivery &&
+        emailDelivery.status !== "SENT" &&
+        emailDelivery.status !== "SKIPPED"
+      ) {
+        await enqueueNotificationEmailBestEffort(
+          notification.id,
         );
       }
     }

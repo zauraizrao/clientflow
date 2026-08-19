@@ -68,6 +68,11 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z
     .string()
     .optional(),
+  // Redis/BullMQ background jobs. Presence is optional at API startup;
+  // config/redis.ts validates the URL only when queue runtime is used.
+  REDIS_URL: z
+    .string()
+    .optional(),
 
   APP_BASE_URL: z
     .string()

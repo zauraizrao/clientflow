@@ -578,8 +578,141 @@ export const notificationRepository = {
     }
   },
 
+  async findEmailDeliveryPayload(
+    notificationId: string,
+  ) {
+    return prisma.notification.findUnique({
+      where: {
+        id: notificationId,
+      },
+      select: {
+        id: true,
+        category: true,
+        type: true,
+        title: true,
+        body: true,
+        link: true,
+        recipient: {
+          select: {
+            user: {
+              select: {
+                email: true,
+                name: true,
+              },
+            },
+          },
+        },
+        deliveries: {
+          where: {
+            channel: "EMAIL",
+          },
+          select: {
+            id: true,
+            status: true,
+            attemptCount: true,
+            lastAttemptAt: true,
+          },
+          take: 1,
+        },
+      },
+    });
+  },
+
+  async recoverStaleEmailDeliveries(
+    processingBefore: Date,
+    limit: number,
+  ): Promise<number> {
+    const stale =
+      await prisma.notificationDelivery.findMany({
+        where: {
+          channel: "EMAIL",
+          status: "PROCESSING",
+          OR: [
+            {
+              lastAttemptAt: null,
+            },
+            {
+              lastAttemptAt: {
+                lte: processingBefore,
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+        },
+        orderBy: {
+          updatedAt: "asc",
+        },
+        take: Math.max(
+          1,
+          Math.min(limit, 500),
+        ),
+      });
+
+    if (stale.length === 0) {
+      return 0;
+    }
+
+    const result =
+      await prisma.notificationDelivery.updateMany({
+        where: {
+          id: {
+            in: stale.map(
+              (delivery) => delivery.id,
+            ),
+          },
+          status: "PROCESSING",
+        },
+        data: {
+          status: "FAILED",
+          lastError:
+            "Recovered stale PROCESSING email delivery after worker interruption.",
+        },
+      });
+
+    return result.count;
+  },
+
+  async listRecoverableEmailDeliveries(
+    maxAttempts: number,
+    limit: number,
+  ) {
+    return prisma.notificationDelivery.findMany({
+      where: {
+        channel: "EMAIL",
+        status: {
+          in: ["PENDING", "FAILED"],
+        },
+        scheduledAt: {
+          lte: new Date(),
+        },
+        attemptCount: {
+          lt: maxAttempts,
+        },
+      },
+      select: {
+        notificationId: true,
+        attemptCount: true,
+      },
+      orderBy: [
+        {
+          scheduledAt: "asc",
+        },
+        {
+          createdAt: "asc",
+        },
+      ],
+      take: Math.max(
+        1,
+        Math.min(limit, 500),
+      ),
+    });
+  },
+
   async claimEmailDelivery(
     notificationId: string,
+    maxAttempts: number,
   ) {
     const claimed =
       await prisma.notificationDelivery.updateMany({
@@ -588,6 +721,9 @@ export const notificationRepository = {
           channel: "EMAIL",
           status: {
             in: ["PENDING", "FAILED"],
+          },
+          attemptCount: {
+            lt: maxAttempts,
           },
         },
         data: {
@@ -643,6 +779,24 @@ export const notificationRepository = {
         status: "FAILED",
         provider: "resend",
         lastError: errorMessage.slice(
+          0,
+          4000,
+        ),
+      },
+    });
+  },
+  async markEmailSkipped(
+    deliveryId: string,
+    reason: string,
+  ): Promise<void> {
+    await prisma.notificationDelivery.update({
+      where: {
+        id: deliveryId,
+      },
+      data: {
+        status: "SKIPPED",
+        provider: "resend",
+        lastError: reason.slice(
           0,
           4000,
         ),
