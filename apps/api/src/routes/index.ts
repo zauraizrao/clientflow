@@ -1,4 +1,5 @@
 import portalDocumentsRoutes from "./portal-documents.routes.js";
+import clientInvoicePaymentRoutes from "./client-invoice-payment.routes.js";
 import { Router } from "express";
 
 import { authRouter } from "./auth.routes.js";
@@ -22,6 +23,10 @@ apiRouter.use("/rbac", rbacRouter);
 apiRouter.use("/notifications", notificationRouter);
 apiRouter.use("/invoices", invoiceRouter);
 apiRouter.use("/portal", portalRouter);
+apiRouter.use(
+  "/client-invoice-payment",
+  clientInvoicePaymentRoutes,
+);
 apiRouter.use("/portal-access", portalAccessRouter);
 
 apiRouter.use("/clients", clientRouter);

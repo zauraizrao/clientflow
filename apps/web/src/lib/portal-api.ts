@@ -13,9 +13,22 @@ type ApiEnvelope<T> = {
   };
 };
 
+
+export type PortalInvoiceDto = {
+  id: string;
+  invoiceNumber: string | null;
+  status: string;
+  currency: string;
+  total: string | number;
+  balanceDue: string | number;
+  dueDate: string | null;
+};
+
+
 async function apiRequest<T>(
   path: string,
 ): Promise<T> {
+
   const response =
     await fetch(path, {
       headers: {
@@ -25,9 +38,11 @@ async function apiRequest<T>(
       cache: "no-store",
     });
 
+
   const payload =
     (await response.json()) as
       ApiEnvelope<T>;
+
 
   if (
     !response.ok ||
@@ -35,15 +50,19 @@ async function apiRequest<T>(
   ) {
     throw new Error(
       payload.error?.message ??
-        `Request failed with HTTP ${response.status}.`,
+      `Request failed with HTTP ${response.status}.`,
     );
   }
+
 
   return payload.data;
 }
 
+
 export const portalKeys = {
+
   all: ["portal"] as const,
+
   dashboard: (
     organizationId: string,
   ) =>
@@ -52,6 +71,8 @@ export const portalKeys = {
       organizationId,
       "dashboard",
     ] as const,
+
+
   previewDashboard: (
     organizationId: string,
     clientId: string,
@@ -65,7 +86,10 @@ export const portalKeys = {
     ] as const,
 };
 
+
+
 export const portalApi = {
+
 
   documents(
     projectId: string,
@@ -75,25 +99,43 @@ export const portalApi = {
     );
   },
 
+
   projectWorkspace(
     projectId: string,
   ): Promise<PortalProjectWorkspaceDto> {
+
     return apiRequest<PortalProjectWorkspaceDto>(
       `/api/backend/portal/projects/${encodeURIComponent(projectId)}`,
     );
   },
+
+
   dashboard():
     Promise<PortalDashboardDto> {
+
     return apiRequest(
       "/api/backend/portal/dashboard",
     );
   },
 
+
   previewDashboard(
     clientId: string,
   ): Promise<PortalDashboardDto> {
+
     return apiRequest(
       `/api/backend/portal/preview/${encodeURIComponent(clientId)}/dashboard`,
     );
   },
+
+
+  invoice(
+    invoiceId: string,
+  ): Promise<PortalInvoiceDto> {
+
+    return apiRequest<PortalInvoiceDto>(
+      `/api/v1/client-invoice-payment/${encodeURIComponent(invoiceId)}`
+    );
+  },
+
 };

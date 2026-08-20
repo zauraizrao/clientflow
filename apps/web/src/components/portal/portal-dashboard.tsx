@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type {
   InvoiceStatus,
   PortalActivitySummaryDto,
@@ -1312,49 +1314,54 @@ function ProjectCard({
 function InvoiceRow({
   invoice,
 }: {
-  invoice:
-    PortalInvoiceSummaryDto;
+  invoice: PortalInvoiceSummaryDto;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-3">
-      <div className="min-w-0">
-        <div className="truncate text-[11px] font-semibold">
-          {invoice.invoiceNumber
-            ? `Invoice ${invoice.invoiceNumber}`
-            : "Invoice"}
-        </div>
-        <div className="mt-0.5 text-[9px] text-black/35">
-          Due{" "}
-          {formatDate(
-            invoice.dueDate,
-          )}
-        </div>
-      </div>
+    <Link
+      href={`/portal/invoices/${invoice.id}`}
+      className="block transition hover:bg-black/[0.02]"
+    >
+      <div className="flex items-center justify-between gap-3 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[11px] font-semibold">
+            {invoice.invoiceNumber
+              ? `Invoice ${invoice.invoiceNumber}`
+              : "Invoice"}
+          </div>
 
-      <div className="shrink-0 text-right">
-        <div className="text-[10px] font-semibold tabular-nums">
-          {formatMoney(
-            invoice.currency,
-            invoice.status ===
-              "PAID"
-              ? invoice.total
-              : invoice.balanceDue,
-          )}
+          <div className="mt-0.5 text-[9px] text-black/35">
+            Due{" "}
+            {formatDate(
+              invoice.dueDate,
+            )}
+          </div>
         </div>
-        <span
-          className={[
-            "mt-1 inline-flex rounded-full px-2 py-0.5 text-[7px] font-semibold uppercase tracking-[0.09em]",
-            invoiceStatusClass(
+
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] font-semibold tabular-nums">
+            {formatMoney(
+              invoice.currency,
+              invoice.status === "PAID"
+                ? invoice.total
+                : invoice.balanceDue,
+            )}
+          </div>
+
+          <span
+            className={[
+              "mt-1 inline-flex rounded-full px-2.5 py-1 text-[7px] font-semibold uppercase tracking-[0.09em]",
+              invoiceStatusClass(
+                invoice.status,
+              ),
+            ].join(" ")}
+          >
+            {statusLabel(
               invoice.status,
-            ),
-          ].join(" ")}
-        >
-          {statusLabel(
-            invoice.status,
-          )}
-        </span>
+            )}
+          </span>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
