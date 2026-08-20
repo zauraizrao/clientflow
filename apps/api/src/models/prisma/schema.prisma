@@ -740,3 +740,66 @@ model NotificationDelivery {
   @@index([organizationId, status, scheduledAt])
   @@index([status, scheduledAt])
 }
+
+enum AutomationTrigger {
+  INVOICE_OVERDUE
+  PROJECT_CREATED
+  PROJECT_COMPLETED
+  TASK_CREATED
+  TASK_COMPLETED
+  CLIENT_CREATED
+}
+
+enum AutomationActionType {
+  SEND_EMAIL
+  CREATE_NOTIFICATION
+  CREATE_ACTIVITY
+  CREATE_TASK
+}
+
+model AutomationRule {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+
+  name        String
+  description String?
+
+  trigger AutomationTrigger
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  actions    AutomationAction[]
+  executions AutomationExecution[]
+
+  @@index([organizationId])
+}
+
+model AutomationAction {
+  id                String @id @default(uuid()) @db.Uuid
+  automationRuleId  String @db.Uuid
+
+  type   AutomationActionType
+  config Json?
+
+  createdAt DateTime @default(now())
+
+  rule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([automationRuleId])
+}
+
+model AutomationExecution {
+  id                String @id @default(uuid()) @db.Uuid
+  automationRuleId  String @db.Uuid
+
+  status  String
+  payload Json?
+
+  executedAt DateTime @default(now())
+
+  rule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([automationRuleId])
+}
