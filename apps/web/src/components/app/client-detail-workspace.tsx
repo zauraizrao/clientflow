@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { crmApi } from "@/lib/crm-api";
 import { ClientFormModal } from "./client-form-modal";
+import { ClientPortalAccessCard } from "./client-portal-access-card";
 import { ContactFormModal } from "./contact-form-modal";
 import { ModalShell } from "./modal-shell";
 
@@ -90,6 +91,7 @@ export function ClientDetailWorkspace({ clientId }: { clientId: string }) {
         </section>
 
         <aside className="space-y-6">
+          <ClientPortalAccessCard clientId={clientId} canWrite={canWrite} />
           <section className="rounded-md border bg-card"><div className="border-b px-4 py-3"><h2 className="text-sm font-semibold">Account details</h2></div><dl className="divide-y text-xs"><Detail label="Industry" value={record.industry ?? "—"} /><Detail label="Email" value={record.email ?? "—"} /><Detail label="Phone" value={record.phone ?? "—"} /><Detail label="Website" value={record.website ?? "—"} href={record.website ?? undefined} /><Detail label="Created" value={formatDate(record.createdAt)} /><Detail label="Updated" value={formatDate(record.updatedAt)} /></dl></section>
           <section className="rounded-md border bg-card px-4 py-4"><div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Account ID</div><div className="mt-2 break-all font-mono text-[11px]">{record.id}</div></section>
         </aside>

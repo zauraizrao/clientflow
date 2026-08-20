@@ -33,7 +33,7 @@ export function LoginForm({
     const result = await signIn("credentials", {
       ...values,
       redirect: false,
-      redirectTo: "/app",
+      redirectTo: "/",
     });
 
     if (result?.error) {
@@ -41,7 +41,7 @@ export function LoginForm({
       return;
     }
 
-    router.push("/app");
+    router.push("/");
     router.refresh();
   }
 
@@ -105,7 +105,7 @@ export function LoginForm({
             className="w-full"
             onClick={() =>
               void signIn("google", {
-                redirectTo: "/app",
+                redirectTo: "/",
               })
             }
           >

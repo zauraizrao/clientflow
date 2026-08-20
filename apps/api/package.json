@@ -15,7 +15,9 @@
     "start:worker": "node dist/worker.js",
     "queue:smoke": "tsx scripts/module9-queue-foundation-smoke.ts",
     "queue:email-smoke": "tsx scripts/module9-notification-email-queue-smoke.ts",
-    "queue:reminder-smoke": "tsx scripts/module9-invoice-due-reminder-smoke.ts"
+    "queue:reminder-smoke": "tsx scripts/module9-invoice-due-reminder-smoke.ts",
+    "portal:smoke": "tsx scripts/module10-client-portal-smoke.ts",
+    "portal:access-smoke": "tsx scripts/module10-client-portal-access-smoke.ts"
   },
   "dependencies": {
     "@clientflow/contracts": "workspace:*",

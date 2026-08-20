@@ -1921,4 +1921,236 @@ export type CreateInvoiceCheckoutResponse = {
   };
   reused: boolean;
 };
+/* =========================================================
+   MODULE 10 - CLIENT PORTAL
+   ========================================================= */
 
+export type PortalMoneySummaryDto = {
+  currency: string;
+  amount: string;
+  overdueAmount: string;
+  openInvoiceCount: number;
+};
+
+export type PortalProjectSummaryDto = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  startDate: string | null;
+  dueDate: string | null;
+  progressPercent: number;
+  completedTaskCount: number;
+  totalTaskCount: number;
+  updatedAt: string;
+};
+
+export type PortalInvoiceSummaryDto = {
+  id: string;
+  invoiceNumber: string | null;
+  projectId: string | null;
+  status: InvoiceStatus;
+  currency: string;
+  total: string;
+  balanceDue: string;
+  issueDate: string | null;
+  dueDate: string | null;
+};
+
+export type PortalActivitySummaryDto = {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: string;
+  actorName: string | null;
+  createdAt: string;
+};
+
+
+export type PortalProjectWorkspaceDto = {
+  project: PortalProjectSummaryDto;
+  milestones: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate: string | null;
+    completedAt: string | null;
+  }>;
+  activity: PortalActivitySummaryDto[];
+};
+
+
+export type PortalDocumentSummaryDto = {
+  id: string;
+  name: string;
+  type: string;
+  createdAt: string;
+};
+
+export type PortalDashboardDto = {
+  organization: {
+    id: string;
+    name: string;
+  };
+  client: {
+    id: string;
+    name: string;
+    industry: string | null;
+    website: string | null;
+  };
+  metrics: {
+    activeProjects: number;
+    completedProjects: number;
+    portfolioProgressPercent: number;
+    upcomingDeadlines: number;
+    overdueInvoices: number;
+  };
+  outstanding: PortalMoneySummaryDto[];
+  projects: PortalProjectSummaryDto[];
+  invoices: PortalInvoiceSummaryDto[];
+  recentActivity: PortalActivitySummaryDto[];
+};
+/* =========================================================
+   MODULE 10.2 - CLIENT PORTAL ACCESS
+   ========================================================= */
+
+export const portalAccessInviteSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid client email address.")
+    .transform((value) => value.toLowerCase()),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Name must be at least 2 characters.")
+    .max(80, "Name is too long.")
+    .optional(),
+});
+
+export type PortalAccessInviteInput = z.infer<
+  typeof portalAccessInviteSchema
+>;
+
+export const portalInvitationTokenSchema = z
+  .string()
+  .trim()
+  .min(40, "Invitation token is invalid.")
+  .max(200, "Invitation token is invalid.");
+
+export const portalInvitationResolveSchema = z.object({
+  token: portalInvitationTokenSchema,
+});
+
+export type PortalInvitationResolveInput = z.infer<
+  typeof portalInvitationResolveSchema
+>;
+
+export const portalInvitationAcceptSchema = z.object({
+  token: portalInvitationTokenSchema,
+  name: z
+    .string()
+    .trim()
+    .min(2, "Name must be at least 2 characters.")
+    .max(80, "Name is too long.")
+    .optional(),
+  password: passwordSchema.optional(),
+});
+
+export type PortalInvitationAcceptInput = z.infer<
+  typeof portalInvitationAcceptSchema
+>;
+
+export const portalAccessInvitationIdParamSchema = z.object({
+  clientId: z.string().uuid("Invalid client ID."),
+  invitationId: z.string().uuid("Invalid invitation ID."),
+});
+
+export type PortalAccessInvitationIdParam = z.infer<
+  typeof portalAccessInvitationIdParamSchema
+>;
+
+export const portalAccessMemberIdParamSchema = z.object({
+  clientId: z.string().uuid("Invalid client ID."),
+  memberId: z.string().uuid("Invalid portal member ID."),
+});
+
+export type PortalAccessMemberIdParam = z.infer<
+  typeof portalAccessMemberIdParamSchema
+>;
+
+export type PortalAccessEmailDeliveryStatus =
+  | "DISABLED"
+  | "SENT"
+  | "FAILED";
+
+export type PortalAccessInvitationState =
+  | "PENDING"
+  | "EXPIRED";
+
+export type PortalAccessActiveUserDto = {
+  membershipId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  avatarUrl: string | null;
+  accessSince: string;
+  signInMethod: "PASSWORD" | "GOOGLE" | "UNAVAILABLE";
+};
+
+export type PortalAccessInvitationDto = {
+  id: string;
+  email: string;
+  inviteeName: string | null;
+  issuedAt: string;
+  expiresAt: string;
+  state: PortalAccessInvitationState;
+  emailStatus: PortalAccessEmailDeliveryStatus;
+  invitedByName: string | null;
+};
+
+export type PortalAccessSuggestedEmailDto = {
+  email: string;
+  label: string;
+  isPrimary: boolean;
+};
+
+export type PortalAccessDto = {
+  client: {
+    id: string;
+    name: string;
+  };
+  activeUsers: PortalAccessActiveUserDto[];
+  invitations: PortalAccessInvitationDto[];
+  suggestedEmails: PortalAccessSuggestedEmailDto[];
+};
+
+export type PortalAccessInviteResultDto = {
+  kind: "INVITED" | "ALREADY_ACTIVE";
+  access: PortalAccessDto;
+  invitation: PortalAccessInvitationDto | null;
+  /**
+   * Returned only on the invitation-creation response. The raw invitation
+   * token is deliberately not persisted in a readable database field.
+   */
+  inviteUrl: string | null;
+};
+
+export type PortalInvitationResolveDto = {
+  status: "PENDING" | "ACCEPTED";
+  organizationName: string;
+  clientName: string;
+  email: string;
+  inviteeName: string | null;
+  expiresAt: string;
+  needsPasswordSetup: boolean;
+  signInMethod: "PASSWORD" | "GOOGLE" | "SETUP_REQUIRED";
+};
+
+export type PortalInvitationAcceptResultDto = {
+  status: "ACCEPTED";
+  organizationName: string;
+  clientName: string;
+  email: string;
+  signedInWithNewPassword: boolean;
+};

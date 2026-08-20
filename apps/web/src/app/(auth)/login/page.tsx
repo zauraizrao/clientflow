@@ -9,7 +9,15 @@ export default async function LoginPage() {
   const session = await auth();
 
   if (session?.user) {
-    redirect(session.user.needsOnboarding ? "/onboarding" : "/app");
+    if (session.user.needsOnboarding) {
+      redirect("/onboarding");
+    }
+
+    redirect(
+      session.user.activeRole === "CLIENT"
+        ? "/portal"
+        : "/app",
+    );
   }
 
   return (

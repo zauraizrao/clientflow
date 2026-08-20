@@ -38,7 +38,13 @@ function escapeHtml(
 function safeActionPath(
   link: string | null,
 ): string {
-  if (link?.startsWith("/app")) {
+  if (
+    link?.startsWith("/app") ||
+    link?.startsWith("/portal") ||
+    link?.startsWith(
+      "/client-access/invite/",
+    )
+  ) {
     return link;
   }
 

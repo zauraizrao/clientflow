@@ -9,5 +9,16 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  redirect(session.user.needsOnboarding ? "/onboarding" : "/app");
+  if (
+    session.user.needsOnboarding
+  ) {
+    redirect("/onboarding");
+  }
+
+  redirect(
+    session.user.activeRole ===
+      "CLIENT"
+      ? "/portal"
+      : "/app",
+  );
 }
